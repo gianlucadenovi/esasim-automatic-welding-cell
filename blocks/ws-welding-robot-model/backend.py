@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell model (ws-welding-robot-model) · version 15 · machine block, Python: def run(ctx)
+# Welding cell model (ws-welding-robot-model) · version 16 · machine block, Python: def run(ctx)
 # The welding cell for EsaSim's 3D view: the four KUKA KR 210 robots with their swan-neck torches and the car body frame on its sled, one model with each part in its own material.
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -256,8 +256,8 @@ def cabinet_spot(bx, by, x0=0.0):
 
 LASER_POLE = ("#e9a910", 0.35, 0.38)   # the light curtain's posts: yellow powder-coated aluminium
 LASER_CAP = ("#1a1b1d", 0.2, 0.5)      # its black end caps, foot and optical window
-LASER_WIN = ("#050607", 0.3, 0.12)     # the round lenses (dark glass)
-LASER_RING = ("#3a3e44", 0.8, 0.3)
+LASER_WIN = ("#0a2016", 0.1, 0.22)     # the round lenses (dark green-tinted glass)
+LASER_RING = ("#8d939a", 0.9, 0.3)
 LASER_LABEL = ("#f2c200", 0.0, 0.45); LASER_INK = ("#111111", 0.0, 0.6)
 LASER_BEAM = ("#ff3b2f", 0.0, 1.0)     # the beams: a faint red line (drawn self-lit, no shadow)
 SIGN_MAT = {"white": ("#eeeeea", 0.0, 0.55), "yellow": ("#f2c200", 0.0, 0.5), "black": ("#141414", 0.0, 0.6), "red": ("#c81e1e", 0.0, 0.5)}
@@ -267,46 +267,55 @@ DRESS_R = 0.021
 
 def laser_barrier(xc):
     """The light curtains around a cell (just for show): on each side of the rail, four posts on a U round the robots
-    (open toward the rail), four faint beams between each pair. A post: a 9 cm aluminium profile on a foot plate, a
-    yellow cap, a round lens (black, in a chrome ring) at each beam on the faces toward its neighbours, the yellow laser
-    warning label on its other faces. Returns {material: mesh} (the beams under "beams")."""
+    (open toward the rail), four faint beams between each pair. A post: an 11 cm square yellow tower on a black foot,
+    black end caps; toward each neighbour a round black lens hood at each beam with its dark lens, a small sensor eye
+    above; on its other faces the yellow CAUTION laser label. Returns {material: mesh} (the beams under "beams")."""
     parts = {k: [] for k in ("post", "cap", "lens", "ring", "label", "ink", "beams")}
-    Z = (0.3, 0.6, 0.9, 1.2); HW = 0.032
+    Z = (0.3, 0.6, 0.9, 1.2); HW = 0.055; HOOD = 0.034
     for sy in (-1, 1):
         P = [np.array([xc - 3.55, sy * 1.45]), np.array([xc - 3.55, sy * 4.2]), np.array([xc + 3.55, sy * 4.2]), np.array([xc + 3.55, sy * 1.45])]
         for k, p in enumerate(P):
-            parts["post"].append(g_rbox([p[0], p[1], 0.73], [2 * HW, 2 * HW, 1.3], 0.006))          # the yellow housing
-            parts["cap"] += [g_rbox([p[0], p[1], 0.06], [2 * HW + 0.008, 2 * HW + 0.008, 0.04], 0.004),   # black end caps
-                             g_rbox([p[0], p[1], 1.4], [2 * HW + 0.008, 2 * HW + 0.008, 0.04], 0.004),
-                             g_rbox([p[0], p[1], 0.012], [0.16, 0.16, 0.024], 0.004),                  # the foot
-                             cyl_axis([p[0], p[1], 0.024], [p[0], p[1], 0.04], 0.011, 16)]             # (its cable connector)
+            parts["post"].append(g_rbox([p[0], p[1], 0.73], [2 * HW, 2 * HW, 1.32], 0.006))           # the yellow tower
+            parts["cap"] += [g_rbox([p[0], p[1], 1.405], [2 * HW + 0.01, 2 * HW + 0.01, 0.03], 0.004),   # black top cap
+                             g_rbox([p[0], p[1], 0.04], [2 * HW + 0.01, 2 * HW + 0.01, 0.06], 0.004),    # black base
+                             g_rbox([p[0], p[1], 0.006], [0.24, 0.24, 0.012], 0.004)]                   # the foot plate
+            for bx_ in (-0.095, 0.095):
+                for by_ in (-0.095, 0.095):
+                    parts["ring"].append(cyl_axis([p[0] + bx_, p[1] + by_, 0.012], [p[0] + bx_, p[1] + by_, 0.02], 0.008, 6))   # anchor bolts
             lit = [(q - p) / np.linalg.norm(q - p) for q in ([P[k - 1]] if k > 0 else []) + ([P[k + 1]] if k < 3 else [])]
             for d in [np.array(v, float) for v in ((1, 0), (-1, 0), (0, 1), (0, -1))]:
-                f = p + d * HW; d3 = np.r_[d, 0.0]
-                if any(d @ l > 0.9 for l in lit):                                   # the black optical window, its round lenses
-                    u = np.r_[-d[1], d[0], 0.0]
-                    parts["cap"].append(box_mesh(np.r_[f, 0.73] + d3 * 0.0008, np.abs(u) * 0.034 + np.abs(d3) * 0.0016 + [0, 0, 1.28]))
+                f = p + d * HW; d3 = np.r_[d, 0.0]; u = np.r_[-d[1], d[0], 0.0]; up = np.array([0, 0, 1.0])
+                if any(d @ l > 0.9 for l in lit):                                   # the lens hoods, toward the beams
                     for z in Z:
-                        c = np.r_[f, z] + d3 * 0.0016
-                        parts["ring"].append(cyl_axis(c, c + d3 * 0.0012, 0.0125, 20))
-                        parts["lens"].append(cyl_axis(c, c + d3 * 0.0022, 0.009, 20))
-                else:                                                               # the laser warning labels
-                    u = np.r_[-d[1], d[0], 0.0]; c = np.r_[f, 1.0] + d3 * 0.0008; s_ = 0.07; h = s_ * math.sqrt(3) / 2
-                    def tri(sz, off, mat):
-                        hh = sz * math.sqrt(3) / 2
-                        pts = [c + d3 * off + u * (-sz / 2) + [0, 0, -hh / 3], c + d3 * off + u * (sz / 2) + [0, 0, -hh / 3], c + d3 * off + [0, 0, 2 * hh / 3]]
-                        v = np.array(pts + [q_ + d3 * 0.001 for q_ in pts]); ff = [[0, 1, 2], [3, 4, 5], [0, 1, 4], [0, 4, 3], [1, 2, 5], [1, 5, 4], [2, 0, 3], [2, 3, 5]]
-                        parts[mat].append((v, np.array(ff + [t[::-1] for t in ff])))
-                    tri(s_, 0.0, "ink"); tri(s_ * 0.78, 0.0004, "label")
-                    parts["ink"].append(cyl_axis(c + d3 * 0.001, c + d3 * 0.0018, 0.006, 12))      # the laser's starburst
-                    for a in range(8):
-                        r_ = u * math.cos(a * math.pi / 4) + np.array([0, 0, 1.0]) * math.sin(a * math.pi / 4)
-                        parts["ink"].append(cyl_axis(c + d3 * 0.0012 + r_ * 0.008, c + d3 * 0.0012 + r_ * 0.016, 0.0012, 4))
-                    parts["ink"].append(box_mesh(c + d3 * 0.0012 + u * 0.012, [abs(u[0]) * 0.024 + 0.002, abs(u[1]) * 0.024 + 0.002, 0.0025]))
+                        c = np.r_[f, z]
+                        parts["cap"].append(cyl_axis(c - d3 * 0.002, c + d3 * HOOD, 0.034, 28))            # the hood
+                        parts["lens"].append(cyl_axis(c + d3 * (HOOD - 0.012), c + d3 * (HOOD + 0.0005), 0.026, 28))   # the lens, set in
+                        parts["cap"].append(cyl_axis(c + d3 * 0.0, c + d3 * 0.004, 0.039, 28))            # its flange
+                    c = np.r_[f, 1.33]
+                    parts["cap"].append(cyl_axis(c - d3 * 0.002, c + d3 * 0.012, 0.018, 20))               # the small sensor eye
+                    parts["lens"].append(cyl_axis(c + d3 * 0.008, c + d3 * 0.0125, 0.011, 20))
+                else:                                                               # the CAUTION laser label
+                    c = np.r_[f, 1.2] + d3 * 0.0006; W_, H_ = 0.084, 0.056
+                    def plate(cc, w, h, t, mat):
+                        parts[mat].append(box_mesh(cc + d3 * t / 2, np.abs(u) * w + np.abs(d3) * t + up * h))
+                    plate(c, W_, H_, 0.001, "label")
+                    plate(c + up * (H_ / 2 - 0.011), W_ - 0.008, 0.014, 0.0016, "ink")                    # the CAUTION band
+                    plate(c + up * (H_ / 2 - 0.011), W_ - 0.03, 0.006, 0.002, "label")                   # (its letters)
+                    plate(c - up * 0.008, W_ - 0.008, 0.0015, 0.0016, "ink")                             # the rule
+                    for zz, w in ((0.002, 0.04), (-0.016, 0.03), (-0.002, 0.034)):                        # the text lines
+                        plate(c + up * zz + u * 0.014, w, 0.003, 0.0016, "ink")
+                    sb = c + d3 * 0.0016 - u * 0.026 - up * 0.008                                         # the starburst
+                    parts["ink"].append(cyl_axis(sb, sb + d3 * 0.0008, 0.005, 12))
+                    for a in range(12):
+                        r_ = u * math.cos(a * math.pi / 6) + up * math.sin(a * math.pi / 6)
+                        parts["ink"].append(cyl_axis(sb + r_ * 0.004, sb + r_ * (0.012 if a % 2 else 0.009), 0.001, 4))
+                    plate(np.r_[f, 0.78], 0.06, 0.036, 0.001, "ink")                                      # the name plate
+                    for zz in (0.006, -0.002, -0.009):
+                        plate(np.r_[f, 0.78 + zz], 0.04, 0.0025, 0.0016, "ring")
         for a_, b_ in zip(P[:-1], P[1:]):
             d = (b_ - a_) / np.linalg.norm(b_ - a_)
             for z in Z:
-                parts["beams"].append(cyl_axis([*(a_ + d * (HW + 0.006)), z], [*(b_ - d * (HW + 0.006)), z], 0.0016, 6))
+                parts["beams"].append(cyl_axis([*(a_ + d * (HW + HOOD - 0.01)), z], [*(b_ - d * (HW + HOOD - 0.01)), z], 0.0016, 6))
     return {k: cat(v) for k, v in parts.items() if v}
 
 
