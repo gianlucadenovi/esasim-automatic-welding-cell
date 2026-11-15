@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell model (ws-welding-robot-model) · version 7 · machine block, Python: def run(ctx)
+# Welding cell model (ws-welding-robot-model) · version 8 · machine block, Python: def run(ctx)
 # The welding cell for EsaSim's 3D view: the four KUKA KR 210 robots with their swan-neck torches and the car body frame on its sled, one model with each part in its own material.
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -41,11 +41,13 @@ Welds: every seam is cut into pieces of dark weld bead (about 4 cm each) riding 
 that keeps it under the floor until the Welding cell block lifts it onto the car as the torch passes, so the welds
 appear behind the torch in step with it and stay on the car as it leaves. A glow at each wire (on a straight joint in
 the wrist) shows the arc while the robot welds. "beads" and "arcs" list these joints for the Welding cell block.
-The cell around them: one red I-beam rail on anchor plates; the sled, a thick deck on two carriages clamped to the
-beam; the robots' bases, black steel blocks square to the rail on floor plates held by four big bolts.
+The cell around them: one red I-beam rail standing on plates bolted to the floor every 1.5 m; the sled, a thick deck on
+two carriages clamped to the beam; the robots' bases, black steel blocks square to the rail on floor plates held by
+four big bolts (the robot's own base, with its own plates, stands on the block).
 Each part carries its material: colour, metalness and roughness (steel and copper metallic, castings painted). For a
 view that can: the car frame mirrors the cell ("envmap": "cube"), each arc glows and throws sparks and smoke
-("fx": "arc"), and the floor mirrors the cell ("floor": {"reflect": 0.35}).
+("fx": "arc"), the orange paint has a clear coat ("clearcoat"), and the cell stands in a hall with walls, a roof and
+rows of lamps over a polished concrete floor ("hall").
 Finishes in seconds, so the view has the model while the welding cell runs beside it.
 """
 import gzip
@@ -69,10 +71,11 @@ BOXES = {"base": ([0, 0.06, 0.17], [1.0, 1.1, 0.4], "#2a2c30"), "a1": ([0.02, 0.
          "a6": ([2.1, 0.06, 1.75], [0.6, 0.2, 0.2], "#2f3238")}
 
 
-CAR_MAT = ("#c2c6cb", 1.0, 0.38)       # satin silver steel (reflects the cell through the cube map of a view that has one)
+CAR_MAT = ("#c4c7cb", 1.0, 0.32)       # satin silver steel (reflects the cell through the cube map of a view that has one)
+HALL = {"x": [-13.0, 13.0], "y": [-7.5, 7.5], "height": 8.0}   # the hall around the cell (walls, roof, lamps: drawn by the view)
 RAIL_MAT = ("#b3141c", 0.65, 0.2)      # the rail: a red I-beam, glossy
 SLED_MAT = ("#2b2f36", 0.6, 0.4)
-BASE_MAT = ("#18191b", 0.75, 0.32)     # the robots' bases: black steel
+BASE_MAT = ("#1b1c1f", 0.35, 0.55)     # the robots' bases: black painted steel
 BOLT_MAT = ("#8a8f96", 0.95, 0.28)
 PLATE_MAT = ("#3a3d42", 0.8, 0.45)
 BEAD_MAT = ("#3a332d", 0.3, 0.7)       # a weld bead: dark, heat-tinted steel
@@ -130,14 +133,16 @@ def cyl_mesh(r, z0, h, x, y, sections=6):
 
 
 def rail_mesh():
-    """The rail: one I-beam along the cell (top at 0.32 m), on anchor plates every 2 m, two bolts each side."""
-    L = 24.0; parts = [box_mesh([0, 0, 0.0125], [L, 0.22, 0.025]), box_mesh([0, 0, 0.16], [L, 0.02, 0.27]), box_mesh([0, 0, 0.3075], [L, 0.22, 0.025])]
+    """The rail: one I-beam along the cell (top at 0.32 m), standing on plates bolted to the floor every 1.5 m."""
+    L = 24.0; P = 0.02                                            # the beam stands on plates 20 mm thick
+    parts = [box_mesh([0, 0, P + 0.0125], [L, 0.22, 0.025]), box_mesh([0, 0, (P + 0.025 + 0.295) / 2], [L, 0.02, 0.295 - P - 0.025]),
+             box_mesh([0, 0, 0.3075], [L, 0.22, 0.025])]
     plates, bolts = [], []
-    for x in np.arange(-11, 11.01, 2.0):
-        plates.append(box_mesh([x, 0, -0.004], [0.34, 0.42, 0.012]))
-        for dx in (-0.11, 0.11):
-            for dy in (-0.16, 0.16):
-                bolts.append(cyl_mesh(0.022, 0.002, 0.018, x + dx, y=dy))
+    for x in np.arange(-11, 11.01, 1.5):                          # a plate every 1.5 m, bolted to the floor on both sides of the beam
+        plates.append(box_mesh([x, 0, P / 2], [0.36, 0.5, P]))
+        for dx in (-0.12, 0.12):
+            for dy in (-0.19, 0.19):
+                bolts += [cyl_mesh(0.03, P, 0.005, x + dx, dy, 20), cyl_mesh(0.022, P + 0.005, 0.016, x + dx, dy, 6), cyl_mesh(0.011, P + 0.021, 0.012, x + dx, dy, 10)]
     return cat(parts), cat(plates), cat(bolts)
 
 
@@ -155,7 +160,8 @@ def sled_mesh():
 def base_mesh(bx, by, bz):
     """A robot's base: a black steel block up to the robot's foot, square to the rail, on a floor plate held down by
     four big bolts."""
-    block = box_mesh([bx, by, (bz + 0.03) / 2], [0.9, 0.9, bz - 0.03])
+    top = bz - 0.004                                              # (just under the robot's own base: no two faces in one plane)
+    block = box_mesh([bx, by, (top + 0.03) / 2], [0.9, 0.9, top - 0.03])
     plate = box_mesh([bx, by, 0.015], [1.3, 1.3, 0.03])
     bolts = []
     for dx in (-0.52, 0.52):
@@ -199,7 +205,10 @@ def colour(m):
         mt = m.visual.material; c = mt.baseColorFactor
         met = mt.metallicFactor if mt.metallicFactor is not None else 0.1
         rough = mt.roughnessFactor if mt.roughnessFactor is not None else 0.5
-        return ("#%02x%02x%02x" % tuple(int(x) for x in c[:3]), round(float(met), 2), round(float(rough), 2))
+        rgb = tuple(int(x) for x in c[:3])
+        if rgb[0] > 220 and 60 < rgb[1] < 150 and rgb[2] < 60:          # the KUKA orange: glossy paint under a clear coat
+            return ("#%02x%02x%02x" % rgb, 0.0, 0.3, 0.7)
+        return ("#%02x%02x%02x" % rgb, round(float(met), 2), round(float(rough), 2))
     except Exception:
         return ("#9aa1aa", 0.1, 0.5)
 
@@ -292,8 +301,11 @@ def run(ctx):
     state = {"o": np.zeros(3)}                             # world position of the current frame's origin (at zero angles)
     def pack(v, f, mat):
         mat = mat if isinstance(mat, tuple) else (mat, 0.1, 0.55)
-        return {"v": np.round(np.asarray(v, float).ravel(), 4).tolist(), "f": np.asarray(f, int).ravel().tolist(),
-                "color": mat[0], "metalness": mat[1], "roughness": mat[2]}
+        out = {"v": np.round(np.asarray(v, float).ravel(), 4).tolist(), "f": np.asarray(f, int).ravel().tolist(),
+               "color": mat[0], "metalness": mat[1], "roughness": mat[2]}
+        if len(mat) > 3:
+            out["clearcoat"] = mat[3]
+        return out
     def joint(origin_world, axis, role, mesh=None, mat=None, frame_rot=np.eye(3), rpy=(0, 0, 0), parent=None, kind=None):
         """A joint at origin_world (given in world coordinates at zero angles; the chain's frames stay world-aligned,
         except inside a robot, where they are the robot's frame: frame_rot maps it to world)."""
@@ -310,7 +322,7 @@ def run(ctx):
         if mesh is not None and role == "car:yaw":
             links[-1]["envmap"] = "cube"                   # metal: a view with a cube map shows the cell in it
         if mesh is not None and role.startswith("arc:"):
-            links[-1]["fx"] = "arc"; links[-1]["emissive"] = True
+            links[-1]["fx"] = "arc"; links[-1]["emissive"] = True; links[-1]["shadow"] = False
     # the sled and the car
     O = [np.array([0.0, FAR, 0.0]), np.array([FAR, 0.0, 0.0]), np.zeros(3)]
     joint(O[0], [0, 0, 1], "car:x", (sled[0] - O[0], sled[1]), SLED_MAT)
@@ -388,7 +400,7 @@ def run(ctx):
             arcs[name] = {"joint": jn, "on": round(L, 4)}
     model = {"format": "esasim.robot/1", "robot": "Welding cell: %s KUKA KR 210 R2700 and the car frame" % ("four" if len(robots) == 4 else "one"),
              "units": "m", "scale": 1, "far": FAR, "robots": [r[0] for r in robots], "joints_layout": layout, "beads": beads, "arcs": arcs, "hide": HIDE,
-             "floor": {"reflect": 0.35, "color": "#8d8f91"}, "joints": joints, "links": links}
+             "hall": HALL, "joints": joints, "links": links}
     name = "welding_cell_%s.robot.json.gz" % ("all" if len(robots) == 4 else robots[0][0].replace(" ", "_"))
     with open(ctx.output("robot", name), "wb") as fh:
         fh.write(gzip.compress(json.dumps(model, separators=(",", ":")).encode(), 6))
