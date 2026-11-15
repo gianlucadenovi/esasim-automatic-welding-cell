@@ -843,7 +843,7 @@ s.w += (w - s.w) * Math.min(1, dt * 8);
 var lv = Math.min(1, s.w / 1.0);
 s.j.getWorldPosition(RFXV3);
 var d = camera.position.distanceTo(RFXV3), near = 1 / (1 + d * d / 10);
-s.g.gain.setTargetAtTime(on && lv > 0.01 ? 0.012 * Math.sqrt(lv) * near : 0, now, 0.05);
+s.g.gain.setTargetAtTime(on && lv > 0.01 ? 0.02 * Math.sqrt(lv) * near : 0, now, 0.05);
 s.o.frequency.setTargetAtTime(s.f0 * (1 + 1.6 * lv), now, 0.05);
 s.bp.frequency.setTargetAtTime(s.f0 * 2 * (1 + 1.6 * lv), now, 0.05);
 });
