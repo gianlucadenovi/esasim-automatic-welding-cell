@@ -25,7 +25,7 @@
     "blocks": [
         {
             "id": "ws-welding-robot-model",
-            "version": 14,
+            "version": 15,
             "name": "Welding cell model"
         },
         {

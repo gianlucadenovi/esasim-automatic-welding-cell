@@ -8,7 +8,7 @@ An [EsaSim](https://esacode.com/) blueprint block: it runs on a machine, in Pyth
 
 | | |
 |---|---|
-| Block | `ws-welding-robot-model` · version 14 |
+| Block | `ws-welding-robot-model` · version 15 |
 | Workspace | Gianluca De Novi's workspace |
 | Author | Gianluca De Novi |
 | Runs on | Any machine |
