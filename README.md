@@ -52,7 +52,7 @@ An [EsaSim](https://esacode.com/) project of the workspace Gianluca De Novi's wo
 
 ### Workspace blocks it uses
 
-- [Welding robot model](blocks/ws-welding-robot-model) · version 2
+- [Welding cell model](blocks/ws-welding-robot-model) · version 3
 - [Welding cell](blocks/ws-welding-cell) · version 6
 
 The data the blueprints read (welding-cell-models) stays in EsaSim.
