@@ -1,0 +1,210 @@
+{
+    "id": "ws-welding-cell-3d-view-2",
+    "version": "1",
+    "name": "Welding cell 3D view",
+    "category": "Welding cell",
+    "icon": "robot-arm",
+    "side": "frontend",
+    "customizable": true,
+    "summary": "The 3D view with the welding cell's hall, polished floor, cube-mapped car, glossy paint and welding sparks, smoke and arc light.",
+    "help": "The project's 3D view (1.47) with the robot-cell additions. The view itself is the project asset views/robot_cell_viewer.js (too large for a block); this block loads it and passes everything through, so inputs and settings are those of the 3D view. Robot model links may carry metalness, roughness, clearcoat, emissive, envmap: \"cube\", fx: \"arc\" and shadow: false; the model may carry hall: {x, y, height}.",
+    "inputs": [
+        {
+            "id": "scene",
+            "label": "Scene or 3D files",
+            "type": "any",
+            "many": true,
+            "formats": [
+                "json",
+                "gz",
+                "glb",
+                "gltf",
+                "obj",
+                "stl",
+                "ply"
+            ],
+            "help": "A scene (esasim.scene/1 JSON), 3D models, a robot model (.robot.json.gz) and/or live telemetry"
+        }
+    ],
+    "outputs": [],
+    "params": [
+        {
+            "key": "environment",
+            "label": "Environment",
+            "type": "select",
+            "default": "outdoor",
+            "options": [
+                "outdoor",
+                "studio",
+                "night"
+            ]
+        },
+        {
+            "key": "quality",
+            "label": "Quality",
+            "type": "select",
+            "default": "high",
+            "options": [
+                "high",
+                "balanced",
+                "fast"
+            ]
+        },
+        {
+            "key": "floor",
+            "label": "Show the floor",
+            "type": "bool",
+            "default": true
+        },
+        {
+            "key": "models",
+            "label": "Models",
+            "type": "select",
+            "default": "side by side",
+            "options": [
+                "side by side",
+                "one at a time"
+            ]
+        },
+        {
+            "key": "textures",
+            "label": "Tissue textures",
+            "type": "bool",
+            "default": true
+        },
+        {
+            "key": "metaballs",
+            "label": "Show the metaballs",
+            "type": "bool",
+            "default": false
+        },
+        {
+            "key": "grid",
+            "label": "Show the grid",
+            "type": "bool",
+            "default": true
+        },
+        {
+            "key": "trails",
+            "label": "Show trajectories",
+            "type": "bool",
+            "default": true
+        },
+        {
+            "key": "speed",
+            "label": "Playback speed",
+            "type": "number",
+            "default": 1
+        },
+        {
+            "key": "model_for",
+            "label": "Model for",
+            "type": "text",
+            "default": ""
+        },
+        {
+            "key": "live_channel",
+            "label": "Live channel",
+            "type": "text",
+            "default": ""
+        },
+        {
+            "key": "joints_channel",
+            "label": "Robot: joints channel",
+            "type": "text",
+            "default": "joints"
+        },
+        {
+            "key": "ghost_channel",
+            "label": "Robot: twin channel",
+            "type": "text",
+            "default": "twin"
+        },
+        {
+            "key": "scene_channel",
+            "label": "Robot: objects channel",
+            "type": "text",
+            "default": "scene"
+        },
+        {
+            "key": "delay",
+            "label": "Robot: behind real time (seconds)",
+            "type": "number",
+            "default": 1.2
+        },
+        {
+            "key": "mouse_speed",
+            "label": "3D mouse speed",
+            "type": "number",
+            "default": 1
+        },
+        {
+            "key": "mouse_mode",
+            "label": "3D mouse moves",
+            "type": "select",
+            "default": "The camera",
+            "options": [
+                "The camera",
+                "Move the scene",
+                "The model"
+            ]
+        },
+        {
+            "key": "numbers",
+            "label": "Numbers",
+            "type": "text",
+            "default": ""
+        },
+        {
+            "key": "events_channel",
+            "label": "Events channel",
+            "type": "text",
+            "default": "event"
+        },
+        {
+            "key": "controls",
+            "label": "Controls",
+            "type": "textarea",
+            "default": ""
+        },
+        {
+            "key": "control_channel",
+            "label": "Controls: channel",
+            "type": "text",
+            "default": "control"
+        },
+        {
+            "key": "routes",
+            "label": "Fleets: show the routes",
+            "type": "bool",
+            "default": true
+        },
+        {
+            "key": "heat",
+            "label": "Fleets: show the heat map",
+            "type": "bool",
+            "default": false
+        },
+        {
+            "key": "camera",
+            "label": "Camera",
+            "type": "select",
+            "default": "free",
+            "options": [
+                "free",
+                "onboard: interstage",
+                "onboard: engines",
+                "onboard: grid fin",
+                "second stage"
+            ]
+        }
+    ],
+    "view": {
+        "w": 6,
+        "h": 7,
+        "resize": "both"
+    },
+    "esasim": {
+        "version": 1
+    }
+}

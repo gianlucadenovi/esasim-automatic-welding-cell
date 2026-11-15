@@ -32,6 +32,11 @@
             "id": "ws-welding-cell",
             "version": 9,
             "name": "Welding cell"
+        },
+        {
+            "id": "ws-welding-cell-3d-view-2",
+            "version": 1,
+            "name": "Welding cell 3D view"
         }
     ]
 }
