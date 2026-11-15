@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell model (ws-welding-robot-model) · version 17 · machine block, Python: def run(ctx)
+# Welding cell model (ws-welding-robot-model) · version 18 · machine block, Python: def run(ctx)
 # The welding cell for EsaSim's 3D view: the four KUKA KR 210 robots with their swan-neck torches and the car body frame on its sled, one model with each part in its own material.
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -89,8 +89,8 @@ BOLT_MAT = ("#8a8f96", 0.95, 0.28)
 PLATE_MAT = ("#3a3d42", 0.8, 0.45)
 BEAD_MAT = ("#3a332d", 0.3, 0.7)       # a weld bead: dark, heat-tinted steel
 GRID_MAT = ("#858b92", 0.9, 0.38)      # the floor grating under the car: galvanised steel
-CAB_MAT = ("#c9ccc8", 0.2, 0.5)        # the control cabinets: light grey (RAL 7035) sheet steel
-CAB_DOOR = ("#bfc3bf", 0.2, 0.45)
+CAB_MAT = ("#c9ccc8", 0.12, 0.2)       # the control cabinets: light grey (RAL 7035) sheet steel, smooth powder coat (glossy)
+CAB_DOOR = ("#bfc3bf", 0.12, 0.18)
 CAB_DARK = ("#1c1e21", 0.3, 0.6)       # plinth, handle, panel frame
 CABLE_MAT = ("#121314", 0.0, 0.5)      # black cable jacket
 PLUG_MAT = ("#b4b9bf", 0.95, 0.22)     # the metal connectors
