@@ -5,8 +5,8 @@
     },
     "name": "1 · Learn to follow the seams",
     "description": "The seam cameras' network learns on the GPU to find the joint in laser profiles; every two minutes a whole car is welded with it, live in 3D. The network goes to the weld-tracker dataset.",
-    "published_version": 5,
-    "updated": "2026-11-15 03:33:03",
+    "published_version": 6,
+    "updated": "2026-11-15 06:20:03",
     "graph": {
         "nodes": [
             {
@@ -42,7 +42,7 @@
                     "minutes": 30,
                     "target_mm": 0.3,
                     "batch": 2048,
-                    "replay_every": 120,
+                    "replay_every": 300,
                     "seed": 1
                 },
                 "title": "Welding cell: learn to follow the seams",
@@ -85,7 +85,7 @@
                     "ghost_channel": "none",
                     "scene_channel": "scene",
                     "delay": 1.5,
-                    "numbers": "train.minutes=Minutes, train.p95_confident_mm=Camera: 95 % within:mm, train.car_worst_mm=Last car: worst weld:mm, train.car_seams_ok=Last car: seams OK",
+                    "numbers": "train.minutes=Minutes, train.p95_confident_mm=Camera: 95 % within:mm, train.car_worst_mm=Last car: worst weld:mm, train.car_seams_ok=Last car: seams OK, train.collisions=Last car: contacts, train.clear_car_mm=Closest to the car:mm",
                     "events_channel": "event"
                 },
                 "title": "Live: the four robots welding a car with the network as it learns"
@@ -136,7 +136,7 @@
                 "x": 1140,
                 "y": 360,
                 "params": {
-                    "fields": "train.minutes,train.median_mm,train.p95_confident_mm,train.confident_pct,train.car_worst_mm,train.car_seams_ok",
+                    "fields": "train.minutes,train.median_mm,train.p95_confident_mm,train.confident_pct,train.car_worst_mm,train.car_seams_ok,train.collisions,train.clear_car_mm,train.clear_robot_mm",
                     "style": "number",
                     "decimals": 2
                 },
