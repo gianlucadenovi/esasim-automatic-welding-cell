@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell (ws-welding-cell) · version 5 · machine block, Python: def run(ctx)
+# Welding cell (ws-welding-cell) · version 6 · machine block, Python: def run(ctx)
 # Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam; learn on the GPU (or the CPU), then run the line car af
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -885,10 +885,10 @@ VIEW_ROBOTS = ["front right", "front left", "rear right", "rear left"]
 
 
 class LiveRobot:
-    """What EsaSim's 3D view shows while a run goes on: one robot (the Welding robot model block makes its model) posed
-    by its joints on channel "joints", and the cell around it on channel "scene": the rails, the sled, the car's floor
-    and every seam of the car as small blocks (the shown robot's: blue to weld, orange welded; the others' grey),
-    a bright block at the wire while it welds."""
+    """What EsaSim's 3D view shows while a run goes on: one robot and the car frame on its sled (the Welding robot model
+    block makes them one model) posed by the angles on channel "joints", and on channel "scene" the rails, the other
+    robots' pedestals and every seam of the car as small blocks (the shown robot's: blue to weld, orange welded; the
+    others' grey), a bright block at the wire while it welds."""
     def __init__(self, robots, which):
         self.R = robots; self.i = VIEW_ROBOTS.index(which) if which in VIEW_ROBOTS else 0
         self.pts = []                                              # (robot, seam, car-frame points, s, length)
@@ -905,9 +905,15 @@ class LiveRobot:
     def reset(self):
         self.done = set(); self.last_seam = -1
 
+    FAR = 1000.0
+
     def joints(self, f):
-        q = f[7 + 6 * self.i: 13 + 6 * self.i]
-        d = {"j%d" % (k + 1): round(float(v), 2) for k, v in enumerate(q)}; d["j7"] = 0.0
+        """j1-j6 carry the sled and the car (moves along and across the rail as turns about axes 1 km away, the car's
+        turn, then the same undone), j7-j12 the robot (degrees), as the Welding robot model block builds the chain."""
+        a = math.degrees(math.asin(f[1] / self.FAR)); b = math.degrees(math.asin(-f[2] / self.FAR)); c = math.degrees(f[4])
+        d = {"j1": round(a, 10), "j2": round(b, 10), "j3": round(c, 6), "j4": round(-c, 6), "j5": round(-b, 10), "j6": round(-a, 10)}
+        for k, v in enumerate(f[7 + 6 * self.i: 13 + 6 * self.i]):
+            d["j%d" % (k + 7)] = round(float(v), 2)
         return d
 
     def scene(self, f, dx):
@@ -917,11 +923,8 @@ class LiveRobot:
                 self.done.add(self.last_seam)
             self.last_seam = k_now
         Rc = rpy(f[6], f[5], f[4]); pc = np.array(f[1:4])
-        objs = list(self.static)
-        objs.append(dict(kind="box", center=[round(f[1] - dx, 3), 0, 0.44], size=[4.4, 1.25, 0.12], color="#2b2f36"))          # the sled
-        fl = pc + Rc @ np.array([0.0, 0.0, -0.53])
-        objs.append(dict(kind="box", center=np.round(fl, 3).tolist(), size=[4.3, 1.5, 0.03], color="#8d939b"))                  # the car's floor
-        for (r, k, P, s, L) in self.pts:
+        objs = list(self.static)                                  # (the sled and the car frame are in the robot model)
+        for (r, k, P, s, L) in (self.pts if abs(f[1] - STOP_X) < 0.2 else []):      # the seams once the car has stopped
             W_ = P @ Rc.T + pc
             for p, si in zip(W_, s):
                 if r != i:
