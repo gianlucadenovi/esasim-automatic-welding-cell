@@ -41,6 +41,13 @@
             "in": "repo"
         },
         {
+            "path": "textures/esacode_logo_white.png",
+            "size": 11255,
+            "sha256": "92205218fc51ed4390cacad441db28a6e3ce9836a9600d2865db88b4f753df32",
+            "zip": "assets/textures/esacode_logo_white.png",
+            "in": "repo"
+        },
+        {
             "path": "textures/smoke_puff.jpg",
             "size": 2278,
             "sha256": "a56a1519276a2dca64576d26fd2ce729898eb722a1854efae4c14020f195c00f",
@@ -55,5 +62,5 @@
             "in": "repo"
         }
     ],
-    "saved": "2026-11-15T09:04:03+00:00"
+    "saved": "2026-11-15T09:08:16+00:00"
 }
