@@ -5,8 +5,8 @@
     },
     "name": "1 · Learn to follow the seams",
     "description": "The seam cameras' network learns on the GPU to find the joint in laser profiles; every two minutes a whole car is welded with it, live in 3D. The network goes to the weld-tracker dataset.",
-    "published_version": 1,
-    "updated": "2026-11-15 01:09:16",
+    "published_version": 2,
+    "updated": "2026-11-15 01:15:54",
     "graph": {
         "nodes": [
             {
@@ -27,7 +27,7 @@
                 "y": 200,
                 "params": {
                     "mode": "Learn to follow the seams",
-                    "accelerator": "NVIDIA GPU",
+                    "accelerator": "auto",
                     "minutes": 20,
                     "target_mm": 0.3,
                     "batch": 2048,
