@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell model (ws-welding-robot-model) · version 12 · machine block, Python: def run(ctx)
+# Welding cell model (ws-welding-robot-model) · version 13 · machine block, Python: def run(ctx)
 # The welding cell for EsaSim's 3D view: the four KUKA KR 210 robots with their swan-neck torches and the car body frame on its sled, one model with each part in its own material.
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -252,6 +252,68 @@ def grid_mesh(xc=0.0):
 def cabinet_spot(bx, by, x0=0.0):
     """Where a robot's control cabinet stands: beside it, away from the rail and from the middle of its cell (at x0)."""
     return bx + math.copysign(1.25, bx - x0), by + math.copysign(1.3, by)
+
+
+LASER_POLE = ("#c3c7cc", 0.85, 0.3)    # the light curtain's posts: anodised aluminium
+LASER_CAP = ("#f2c200", 0.0, 0.5)
+LASER_WIN = ("#15171a", 0.3, 0.15)     # the dark emitter/receiver windows
+LASER_BEAM = ("#ff3b2f", 0.0, 1.0)     # the beams: a faint red line (drawn self-lit, no shadow)
+SIGN_MAT = {"white": ("#eeeeea", 0.0, 0.55), "yellow": ("#f2c200", 0.0, 0.5), "black": ("#141414", 0.0, 0.6), "red": ("#c81e1e", 0.0, 0.5)}
+DRESS_MAT = ("#141516", 0.05, 0.62)    # the robots' dress packs: black corrugated conduit
+DRESS_R = 0.021
+
+
+def laser_barrier(xc):
+    """The light curtains around a cell (just for show): on each side of the rail, four posts on a U round the robots
+    (open toward the rail), four faint beams between each pair. Returns posts, caps, windows, beams."""
+    posts, caps, wins, beams = [], [], [], []
+    for sy in (-1, 1):
+        P = [np.array([xc - 3.55, sy * 1.45]), np.array([xc - 3.55, sy * 4.2]), np.array([xc + 3.55, sy * 4.2]), np.array([xc + 3.55, sy * 1.45])]
+        for k, p in enumerate(P):
+            posts += [box_mesh([p[0], p[1], 0.66], [0.05, 0.05, 1.3]), box_mesh([p[0], p[1], 0.006], [0.16, 0.16, 0.012])]
+            caps.append(box_mesh([p[0], p[1], 1.335], [0.062, 0.062, 0.07]))
+            for q in ([P[k - 1]] if k > 0 else []) + ([P[k + 1]] if k < 3 else []):
+                d = (q - p) / np.linalg.norm(q - p); c = p + d * 0.026
+                size = [0.004, 0.032, 1.08] if abs(d[0]) > 0.5 else [0.032, 0.004, 1.08]
+                wins.append(box_mesh([c[0], c[1], 0.76], size))
+        for a_, b_ in zip(P[:-1], P[1:]):
+            d = (b_ - a_) / np.linalg.norm(b_ - a_)
+            for z in (0.3, 0.6, 0.9, 1.2):
+                beams.append(cyl_axis([*(a_ + d * 0.03), z], [*(b_ - d * 0.03), z], 0.0016, 6))
+    return cat(posts), cat(caps), cat(wins), cat(beams)
+
+
+def warning_sign(cx, cy):
+    """A warning sign on the back of a cabinet (the side away from the rail): a white plate, the yellow triangle with
+    its black border and exclamation mark, a red band."""
+    s = -math.copysign(1, cy); D = 0.5; y0 = cy - s * D / 2                # s: toward the rail; y0: the back face
+    out = -s; z0 = 1.35; parts = {k: [] for k in SIGN_MAT}
+    def plate(c, w, h, t, mat):
+        parts[mat].append(box_mesh([c[0], y0 + out * t / 2, c[1]], [w, abs(t) + 1e-4, h]))
+    def tri(c, side, t, mat):
+        h = side * math.sqrt(3) / 2; pts = [(-side / 2, -h / 3), (side / 2, -h / 3), (0, 2 * h / 3)]
+        v = [[cx + c[0] + px, y0 + out * tt, z0 + c[1] + pz] for tt in (0, t) for px, pz in pts]
+        f = [[0, 1, 2], [3, 5, 4], [0, 3, 4], [0, 4, 1], [1, 4, 5], [1, 5, 2], [2, 5, 3], [2, 3, 0]]
+        f = f + [t[::-1] for t in f]                                         # (both ways: seen from either side)
+        parts[mat].append((np.array(v), np.array(f)))
+    plate((cx, z0 - 0.04), 0.36, 0.5, 0.004, "white")
+    tri((0, 0.06), 0.27, 0.006, "black"); tri((0, 0.066), 0.22, 0.008, "yellow")
+    plate((cx, z0 + 0.085), 0.018, 0.07, 0.010, "black"); plate((cx, z0 + 0.03), 0.018, 0.018, 0.010, "black")
+    plate((cx, z0 - 0.22), 0.32, 0.07, 0.006, "red")
+    for zz in (z0 - 0.205, z0 - 0.235):                                      # ("text" lines on the band)
+        plate((cx, zz), 0.24, 0.008, 0.008, "white")
+    return {k: cat(v) for k, v in parts.items() if v}
+
+
+def dress_route(name, spot):
+    """Where a robot's dress pack runs (robot frame, zero angles), anchor by anchor: [link, point], and the slack of
+    each span (m: + sags, - arches). It leaves the base at the back, climbs A1, runs down the outside of the upper
+    arm, over the elbow, along the top of the forearm and loops over the wrist to the tool."""
+    end = [6, (1.85, 0.085, 2.184)] if spot else [6, (1.86, 0.0, 1.845)]
+    pts = [[0, (-0.43, -0.28, 0.28)], [1, (-0.36, -0.29, 0.76)], [2, (0.36, -0.47, 1.05)], [2, (0.34, -0.465, 1.82)],
+           [3, (0.80, -0.06, 1.99)], [3, (1.24, -0.05, 1.96)], [4, (1.47, 0.0, 1.915)], end]
+    slack = [0.05, 0.03, 0.02, 0.05, 0.02, 0.02, -0.10]
+    return pts, slack
 
 
 def cabinet_meshes(cx, cy):
@@ -832,7 +894,7 @@ def run(ctx):
         links.append(pack(mesh[0], mesh[1], mat) if mesh is not None else {})
         if mesh is not None and role in ("car:yaw", "car2:yaw", "car3:yaw"):
             links[-1]["envmap"] = "cube"                   # metal: a view with a cube map shows the cell in it
-        if mesh is not None and role.endswith(("lamps", "screens")):
+        if mesh is not None and role.endswith(("lamps", "screens", "beams")):
             links[-1]["emissive"] = True; links[-1]["shadow"] = False
         if mesh is not None and role.startswith("arc:"):
             links[-1]["fx"] = "arc"; links[-1]["emissive"] = True; links[-1]["shadow"] = False
@@ -887,6 +949,15 @@ def run(ctx):
                ("static:cabinet fittings", cat(cab["dark"]), CAB_DARK), ("static:cabinet screens", cat(cab["screen"]), SCREEN),
                ("static:cabinet lamps", cat(cab["green"]), LAMP_GREEN), ("static:cabinet amber lamps", cat(cab["amber"]), LAMP_AMBER),
                ("static:connectors", cat(cab["metal"]), PLUG_MAT), ("static:cables", cat(cab["cable"]), CABLE_MAT)]
+    lb = [laser_barrier(x0) for x0 in cells]                   # the light curtains round each cell
+    static += [("static:laser posts", cat([m[0] for m in lb]), LASER_POLE), ("static:laser caps", cat([m[1] for m in lb]), LASER_CAP),
+               ("static:laser windows", cat([m[2] for m in lb]), LASER_WIN), ("static:laser beams", cat([m[3] for m in lb]), LASER_BEAM)]
+    signs = {}
+    for name, bx, by, bz, aim in every:                        # a warning sign on the back of each control cabinet
+        cx, cy = cabinet_spot(bx, by, CELL_B_X if name.startswith("spot ") else CELL_A_X)
+        for k, m in warning_sign(cx, cy).items():
+            signs.setdefault(k, []).append(m)
+    static += [("static:warning signs %s" % k, cat(v), SIGN_MAT[k]) for k, v in signs.items()]
     # the doors: fixed guides, housing and frame; the panels rise on their own joints (door:in, door:out: metres up),
     # moved by the Welding cell block before the car comes in and before it leaves
     doors = []
@@ -951,6 +1022,25 @@ def run(ctx):
         joint(np.zeros(3), [-1, 0, 0], "gun:%s" % name, (mv[0][1][0] - QP[5], mv[0][1][1]), GUN_MAT[mv[0][0]], parent="%s:A6" % name, kind="prismatic")
         for mt, (v, f) in mv[1:]:
             joint(np.zeros(3), [1, 0, 0], "static:%s gun moving %s" % (name, mt), (v - QP[5], f), GUN_MAT[mt], parent="gun:%s" % name, kind="fixed")
+    # the dress packs: each robot's cable from its base to its torch or gun, held in clamps on the links; the view draws
+    # the cable itself through the clamps as the arm moves (model["dress"])
+    dress = []
+    for name, *_ in every:
+        spot = name.startswith("spot ")
+        pts, slack = dress_route(name, spot)
+        jn = lambda k: ("%s:yaw" % name) if k == 0 else ("%s:A%d" % (name, k))
+        loc = lambda k, p: np.asarray(p, float) - (QP[k - 1] if k > 0 else 0)
+        P = [np.asarray(p, float) for _, p in pts]
+        anchors = [[jn(k), np.round(loc(k, p), 4).tolist()] for k, p in pts]
+        dress.append({"robot": name, "anchors": anchors, "slack": slack, "radius": DRESS_R, "color": DRESS_MAT[0]})
+        for i, (k, p) in enumerate(pts):
+            d = (P[min(i + 1, len(P) - 1)] - P[max(i - 1, 0)]); d = d / np.linalg.norm(d)
+            q = loc(k, p)
+            if 0 < i < len(pts) - 1:                       # a clamp: a short collar round the conduit
+                v, f = cyl_axis(q - d * 0.022, q + d * 0.022, DRESS_R + 0.009, 16)
+            else:                                          # the ends: a connector housing
+                v, f = cyl_axis(q - d * 0.05, q + d * 0.01, DRESS_R + 0.012, 16)
+            joint(np.zeros(3), [1, 0, 0], "static:%s dress %d" % (name, i), (v, f), DRESS_MAT if 0 < i < len(pts) - 1 else PLATE_MAT, parent=jn(k), kind="fixed")
     # the arc: a glow at each wire, held inside the wrist until the robot welds
     arcs = {}
     if cf:
@@ -970,6 +1060,7 @@ def run(ctx):
              "units": "m", "scale": 1, "far": FAR, "robots": [r[0] for r in robots], "joints_layout": layout, "beads": beads, "arcs": arcs, "hide": HIDE,
              "spot_robots": [r[0] for r in SPOT_ROBOTS] if spots_on else [], "marks": marks if spots_on else [], "chains": chains,
              "cells": {"mig": CELL_A_X, "spot": CELL_B_X if spots_on else None}, "gun_open": GUN_OPEN,
+             "dress": dress,
              "hall": HALL, "joints": joints, "links": links}
     name = "welding_cell_%s.robot.json.gz" % ("all" if len(robots) == 4 else robots[0][0].replace(" ", "_"))
     with open(ctx.output("robot", name), "wb") as fh:
