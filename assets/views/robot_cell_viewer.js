@@ -836,6 +836,30 @@ R.o2.frequency.setTargetAtTime(520 + 1100 * lv, now, 0.1);
 R.g2.gain.setTargetAtTime(on ? 0.006 * lv * near : 0, now, 0.08);
 R.g3.gain.setTargetAtTime(on ? 0.09 * lv * near : 0, now, 0.08);
 }
+// the doors: a roll-up door's motor hum and the rattle of its slats and chain while it moves, a clunk when it stops
+if (!M.doors) {
+M.doors = [];
+['door:in', 'door:out'].forEach(function (dn) {
+var ix = (ud.names || {})[dn]; if (ix == null || !ud.joints[ix]) return;
+var g = A.createGain(); g.gain.value = 0; g.connect(AUD.nodes.master);
+var mo = A.createOscillator(); mo.type = 'sawtooth'; mo.frequency.value = 62; var ml = A.createBiquadFilter(); ml.type = 'lowpass'; ml.frequency.value = 260; var mg = A.createGain(); mg.gain.value = 0.55; mo.connect(ml); ml.connect(mg); mg.connect(g); mo.start();
+var rs = A.createBufferSource(); rs.buffer = AUD.nodes.white; rs.loop = true; var rb = A.createBiquadFilter(); rb.type = 'bandpass'; rb.frequency.value = 1100; rb.Q.value = 1.6;
+var rg = A.createGain(); rg.gain.value = 0.35; var lfo = A.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 17; var lg = A.createGain(); lg.gain.value = 0.3; lfo.connect(lg); lg.connect(rg.gain); lfo.start();
+rs.connect(rb); rb.connect(rg); rg.connect(g); rs.start();
+M.doors.push({ j: ud.joints[ix], prev: null, v: 0, moving: false, g: g, lfo: lfo });
+});
+}
+M.doors.forEach(function (D) {
+var h = D.j.position.length(), v = D.prev == null ? 0 : Math.abs(h - D.prev) / dt; D.prev = h;
+if (v > 5) v = 0;                                                     // a jump, not a move
+D.v += (v - D.v) * Math.min(1, dt * 6);
+var mv = D.v > 0.05; D.j.getWorldPosition(RFXV3);
+var d = camera.position.distanceTo(RFXV3), near = 1 / (1 + d * d / 120);
+D.g.gain.setTargetAtTime(on && mv ? 0.22 * near : 0, now, 0.08);
+D.lfo.frequency.setTargetAtTime(12 + 14 * Math.min(1, D.v / 0.75), now, 0.1);
+if (D.moving && !mv && on) { audBurst({ f: 180, type: 'lowpass', a: 0.002, d: 0.28, g: 0.9 * near, brown: true }); audBurst({ f: 900, type: 'bandpass', Q: 1, a: 0.001, d: 0.09, g: 0.4 * near }); }
+D.moving = mv;
+});
 // the servos: each axis's turning speed
 M.servos.forEach(function (s) {
 var w = s.j.quaternion.angleTo(s.q) / dt; s.q.copy(s.j.quaternion);
@@ -1111,13 +1135,27 @@ var known = {}; units().forEach(function (V) { known[V.id] = 1; known[lc(V.name)
 var other = Object.keys(ROBOT.feed).filter(function (k) { return !known[k]; })[0];
 return other != null ? ROBOT.feed[other] : null;
 }
+// the car's joints (car:..., a turn about an axis "far" metres away for the moves along and across the rail): when the
+// car jumps more than 1.5 m from one sample to the next (the next car put at the start, outside behind a closed door),
+// they go there at once instead of sliding the whole rail
+function rfxCarJumps(r, qa, qb) {
+var ud = r.userData; if (ud.carJ === undefined) {
+ud.carJ = null; var nm = ud.names || {}, far = +(ud.far || 0);
+var ix = nm['car:x']; if (ix != null) { ud.carJ = { x: ix, far: far || 1000, all: Object.keys(nm).filter(function (k) { return /^car:/.test(k); }).map(function (k) { return nm[k]; }) }; }
+}
+var C = ud.carJ; if (!C || qa[C.x] == null || qb[C.x] == null) return null;
+var dv = Math.abs(qb[C.x] - qa[C.x]) * (ud.rad ? 1 : Math.PI / 180) * C.far;
+if (dv < 1.5) return null;
+var m = {}; C.all.forEach(function (i) { m[i] = true; }); return m;
+}
 function sampleAt(L, t, r) {
 if (!L.length) return null;
 if (t <= L[0].t) return L[0];
 for (var i = L.length - 1; i >= 0; i--) if (L[i].t <= t) {
 var a = L[i], b = L[i + 1]; if (!b || b.t - a.t > 2) return a;
 var k = (t - a.t) / (b.t - a.t), qa = vecOf(a, r) || [], qb = vecOf(b, r) || [], n = Math.max(qa.length, qb.length), q = new Array(n);
-for (var j = 0; j < n; j++) { var x = qa[j], y = qb[j]; q[j] = x == null ? (y == null ? null : y) : y == null ? x : x + (y - x) * k; }
+var snap = rfxCarJumps(r, qa, qb);                                 // a car put back at the start: no slide along the rail
+for (var j = 0; j < n; j++) { var x = qa[j], y = qb[j]; q[j] = x == null ? (y == null ? null : y) : y == null ? x : (snap && snap[j]) ? (k < 0.5 ? x : y) : x + (y - x) * k; }
 return { q: q, named: null, rad: a.rad };
 }
 return L[0];
