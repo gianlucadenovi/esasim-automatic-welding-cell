@@ -1,18 +1,18 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell (ws-welding-cell) · version 8 · machine block, Python: def run(ctx)
-# Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam; learn on the GPU (or the CPU), then run the line car af
+# Welding cell (ws-welding-cell) · version 9 · machine block, Python: def run(ctx)
+# Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam, without the robots touching the car or each other; lear
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
 #
 # Inputs   ctx.inputs["id"] is a list of files: .path .name .size .read_text() .read_json()
 #   tracker     Files (pt)                Seam tracker · several · optional · The weld-tracker dataset (seam_tracker_*.pt): the line uses the newest; learning goes on from it
-#   models      Files (glb)               Models · several · optional · The welding-cell-models dataset: kr210_weld.glb (the robot with its torch) and s15_frame.glb (the car frame), for the 3D scene output
+#   models      Files (glb)               Models · several · optional · The welding-cell-models dataset: kr210_weld.glb (the robot with its torch) and s15_frame.glb (the car frame): the robots' and the car's shapes for the collision checks, and the 3D scene output
 #   robot       Files (gz)                Robot model · several · optional · The Welding cell model block's output: its joint list, weld beads and arcs say what each joint of the joints channel is, and the block starts after it, so the cell is in the 3D view when the first car
 # Outputs  ctx.output("id", "name.ext") is the path to write; ctx.write_json / ctx.write_text
 #   tracker     Files (pt)                Seam tracker · Learn: seam_tracker_<date>_<p95>um.pt (the network and its scores)
 #   curve       Table (csv)               Learning curve · Learn: training.csv, every 15 s
 #   welds       Table (csv)               Welds · Line: welds.csv, one row per seam of every car
-#   cars        Table (csv)               Cars · Line: cars.csv, where each car really was and where the robots found it, cycle time, worst weld
+#   cars        Table (csv)               Cars · Line: cars.csv, where each car really was and where the robots found it, cycle time, worst weld, closest the robots came to the car and to each other, moments of contact
 #   scene       3D scene (json, glb)      3D scene · welding_cell.scene.json (esasim.scene/1: the newest five cars, every robot part posed) and the robot parts and car frame as GLB, for a 3D view after the run
 #   metadata    Files (json)              Summary
 #   telemetry   Live telemetry            ctx.telemetry("channel", data) while it runs
@@ -24,7 +24,7 @@
 #   target_mm   number    Learning: stop at (mm, 95 % of readings) = 0.3
 #   batch       number    Learning: profiles per step = 2048
 #   lr          number    Learning rate = 0.002
-#   replay_every number    Learning: weld a car every (s) = 120
+#   replay_every number    Learning: weld a car every (s) = 300
 #   from_scratch bool      Learning: start from scratch = false
 #   tracker_file text      Seam tracker file = ""
 #   cars        number    Line: cars = 0
@@ -38,7 +38,7 @@
 #   seam_camera bool      Seam camera = true
 #   seed        number    Seed = 1
 # Runs on  Any machine, NVIDIA GPU. Return a dict to fill the "result" output.
-# Packages torch[cuda], numpy, trimesh (installed by the worker with pip when missing)
+# Packages torch[cuda], numpy, trimesh, scipy (installed by the worker with pip when missing)
 # EsaSim rewrites these lines from the block's definition each time it is saved: change the definition, not them.
 # ── end of EsaSim block header ────────────────────────────────────────
 
@@ -58,11 +58,18 @@ So the taught (nominal) programme misses the seams by up to ~5 cm. The robots se
   2. Track: while welding, the camera looks 65 mm ahead of the wire; each laser profile tells where the seam really
      is, and the torch follows it when it gets there.
 
+The robots must not touch the car nor each other. With the robot and car models (Models), the cell knows their shapes
+(the robot as surface points grouped in small spheres, the car as a dense point cloud): each robot welds each seam
+with a torch lean that keeps the arm 15 mm and the torch 6 mm from the sheet wherever the sled stops (found once,
+stored in TAUGHT and checked again at the start), every move keeps clear of the car (through raised via poses when the
+straight way does not), and the torch is held off the sheet while it scans. Every car is checked afterwards: the least
+distance of each robot to the real car and between the robots, and the moments anything touched.
+
 The seam camera's eyes are a small neural network (a 1D CNN) that reads a laser profile (160 depths across the seam)
 and says where the joint is (across and in depth) and how sure it is. Learn to follow the seams trains it on the GPU
 on millions of simulated profiles of the four joint types of this frame (lap, corner, flange edge, butt with a gap),
-with noise, specular dropouts, weld spatter, holes and stray edges; every couple of minutes a whole car is welded in
-the cell with the network as it is, replayed in the 3D view. Run the production line welds car after car with the
+with noise, specular dropouts, weld spatter, holes and stray edges; every few minutes a whole car is welded in the
+cell with the network as it is, replayed in the 3D view. Run the production line welds car after car with the
 learned network.
 
 3D: with the robot and car models wired to Models (kr210_weld.glb, s15_frame.glb), the block cuts the robot into its
@@ -156,27 +163,159 @@ def tool_frame(n, t):
     x = -n / np.linalg.norm(n); y = t - (t @ x) * x; y /= np.linalg.norm(y); return np.c_[x, y, np.cross(x, y)]
 
 
+# ===================================================================================================== collisions
+CLEAR_WELD_ARM = 0.015      # m: the arm while welding
+CLEAR_WELD_TOOL = 0.006     # m: the torch and the seam camera while welding (about the resolution of the check)
+CLEAR_MOVE = 0.025          # m: everything on the robot during moves (after the car has been found)
+CLEAR_UNSURE = 0.040        # m: more before the car has been found (the sled stops within 3 cm)
+TOUCH = 0.002               # m: closer than this counts as touching (the surfaces are checked as 4-6 mm point clouds)
+CLEAR_AIR = 0.006           # m: the torch's least distance to the sheet when it is not welding
+STANDOFF = 0.015            # m: the torch off the sheet while the camera reads a reference point or runs up to a seam
+TIP_FREE = 0.04             # m: the wire and the end of the nozzle, at the seam by design, are not checked
+
+
+class Collide:
+    """The robots and the car as the cell checks them. Every robot link is a cloud of surface points (8 mm apart)
+    grouped in small spheres (5 cm cells for the arm, 1.5 cm for the torch and the seam camera), and the car frame is
+    a point cloud (6 mm). A pose is checked sphere by sphere against the car; only where a sphere comes within a few
+    centimetres are its own points checked, so the distances are those of the real surfaces (to a few millimetres)."""
+    LINKS = ["base", "a1", "a2", "a3", "a4", "a5", "a6"]
+    C = np.array([[1, 0, 0], [0, 0, 1], [0, -1, 0]])
+    DROP = {"wire_feeder", "hose"}
+
+    def __init__(self, robot_glb, car_glb):
+        import trimesh
+        from scipy.spatial import cKDTree
+        self.KD = cKDTree
+        sc = trimesh.load(robot_glb, force="scene"); g = sc.graph; par = g.transforms.parents
+        arm = {L: [] for L in self.LINKS}; tool = []
+        for node in g.nodes_geometry:
+            if node in self.DROP:
+                continue
+            n = node; L = None
+            while n is not None:
+                if n in self.LINKS:
+                    L = n; break
+                n = par.get(n)
+            if L is None:
+                continue
+            T, gn = g[node]; m = sc.geometry[gn].copy(); m.apply_transform(T)
+            pts, _ = trimesh.sample.sample_surface(m, max(100, int(m.area / 0.008 ** 2)), seed=1)
+            if L == "a3":
+                pts = pts[pts[:, 1] < 1.98]                        # (the cover box on the forearm is not on these robots)
+            (tool if node.startswith(("torch", "camera")) else arm[L]).append(pts @ self.C)
+        C_, R_, LK, TL, PT, PS = [], [], [], [], [], []
+        groups = [(k, np.vstack(arm[L]), 0.05, False) for k, L in enumerate(self.LINKS) if arm[L]]
+        if tool:
+            groups.append((6, np.vstack(tool), 0.015, True))
+        for k, P, cell, is_tool in groups:
+            if is_tool:
+                P = P[np.linalg.norm(P - TCP0, axis=1) > TIP_FREE]  # the wire and the nozzle's end: at the seam by design
+            q = np.floor(P / cell).astype(np.int64); u, inv = np.unique(q, axis=0, return_inverse=True); inv = inv.ravel()
+            c = np.zeros((len(u), 3)); np.add.at(c, inv, P); c /= np.bincount(inv)[:, None]
+            r = np.zeros(len(u)); np.maximum.at(r, inv, np.linalg.norm(P - c[inv], axis=1))
+            PS.append(inv + sum(len(x) for x in C_)); PT.append(P)
+            C_.append(c); R_.append(r); LK += [k] * len(c); TL += [is_tool] * len(c)
+        self.c = np.vstack(C_); self.r = np.concatenate(R_); self.link = np.array(LK); self.is_tool = np.array(TL)
+        self.pts = np.vstack(PT); self.pts_sphere = np.concatenate(PS); self.pts_link = self.link[self.pts_sphere]
+        order = np.argsort(self.pts_sphere, kind="stable"); self.pts = self.pts[order]; self.pts_sphere = self.pts_sphere[order]
+        self.pts_link = self.pts_link[order]
+        self.start = np.searchsorted(self.pts_sphere, np.arange(len(self.c) + 1))
+        sc = trimesh.load(car_glb, force="scene"); Ry = trimesh.transformations.rotation_matrix(-math.pi / 2, [0, 1, 0]); ms = []
+        for node in sc.graph.nodes_geometry:
+            T, gn = sc.graph[node]; m = sc.geometry[gn].copy(); m.apply_transform(Ry @ T); ms.append(m)
+        m = trimesh.util.concatenate(ms); pts, _ = trimesh.sample.sample_surface(m, int(m.area / 0.006 ** 2), seed=1)
+        self.car = cKDTree(pts @ self.C)
+
+    def frames(self, robot, q):
+        _, _, fr = fk(q)
+        Rs = [robot["Rb"]] + [robot["Rb"] @ R for R, p in fr]; ps = [robot["base"]] + [robot["Rb"] @ p + robot["base"] for R, p in fr]
+        return Rs, ps
+
+    def posed(self, robot, q, which=None):
+        """The robot's sphere centres in the world for joint angles q (rad)."""
+        Rs, ps = self.frames(robot, q); out = np.empty_like(self.c)
+        for k in range(7):
+            m = self.link == k
+            if which is not None:
+                m &= which
+            out[m] = self.c[m] @ Rs[k].T + ps[k]
+        return out
+
+    def car_clear(self, robot, q, Rc, pc, tool_apart=False, near=0.03):
+        """How far the robot is from the car (m; about 0: touching), the car at (Rc, pc). With tool_apart:
+        (arm, torch). Spheres further than `near` from the car count by their own distance."""
+        sel = self.link > 0                                        # the base never reaches the car
+        W = self.posed(robot, q, sel)[sel]
+        d, _ = self.car.query((W - pc) @ Rc, distance_upper_bound=0.5)
+        ds = np.minimum(d, 0.5) - self.r[sel]
+        idx = np.nonzero(sel)[0]; tl = self.is_tool[idx]; isfar = ds >= near
+        best = {t: float(ds[isfar & (tl == t)].min()) if (isfar & (tl == t)).any() else 0.5 for t in (False, True)}
+        close = idx[~isfar]
+        if len(close):
+            Rs, ps = self.frames(robot, q)
+            rows = np.concatenate([np.arange(self.start[k], self.start[k + 1]) for k in close])
+            P = self.pts[rows]; lk = self.pts_link[rows]; Wp = np.empty_like(P)
+            for k in range(7):
+                m = lk == k
+                if m.any():
+                    Wp[m] = P[m] @ Rs[k].T + ps[k]
+            dp, _ = self.car.query((Wp - pc) @ Rc, distance_upper_bound=0.1)
+            tl = self.is_tool[self.pts_sphere[rows]]
+            for t in (False, True):
+                if (tl == t).any():
+                    best[t] = min(best[t], float(dp[tl == t].min()))
+        return (best[False], best[True]) if tool_apart else min(best.values())
+
+    def robots_clear(self, ra, qa, rb, qb):
+        if np.linalg.norm(ra["base"][:2] - rb["base"][:2]) > 6.0:
+            return 9.0
+        A = self.posed(ra, qa); B = self.posed(rb, qb)
+        d, j = self.KD(B).query(A, distance_upper_bound=0.6); ok = np.isfinite(d)
+        return float((d[ok] - self.r[ok] - self.r[j[ok]]).min()) if ok.any() else 0.6
+
+
+COLL = None                 # the cell's Collide, once the models are read
+# each robot's way of welding each seam, found once with the collision checks (lean across and along the seam in deg,
+# welded from its other end, arm pose to start from[, the torch's clearance where the seam allows no more]): checked
+# again at the start, searched anew only if it fails
+TAUGHT = {
+    "front_right": {"Front rail": [-45, -10, True, 0], "Strut tower": [-15, 0, True, 0], "A-pillar and roof rail (front)": [0, 0, False, 0]},
+    "front_left": {"Front rail": [35, 0, False, 0, 0.004], "Strut tower": [0, 0, True, 0], "A-pillar and roof rail (front)": [0, 0, True, 0]},
+    "rear_right": {"Roof rail (rear)": [0, 0, True, 0], "Quarter to deck": [0, 0, False, 1], "Rear wheel arch": [-15, 0, False, 0], "Tail corner": [25, 0, False, 0]},
+    "rear_left": {"Roof rail (rear)": [0, 0, False, 0], "Quarter to deck": [0, 0, True, 0], "Rear wheel arch": [15, 0, True, 0, 0.004], "Tail corner": [0, 0, True, 0]},
+}
+
+
 # ===================================================================================================== seams and robots
 PLAN_SEEDS = [np.radians(s) for s in ([0, 15, 35, 0, -110, 0], [0, -20, 40, 0, 60, 0], [0, -30, 60, 180, 80, 0], [30, -10, 30, 90, 60, 0],
                                       [-30, -10, 30, -90, 60, 0], [0, 0, 20, 0, -60, 0], [0, -10, 30, 180, -60, 0])]
 
 
-def plan_seam(sm, base, Rb):
+def plan_seam(sm, base, Rb, robot=None):
     """The swan-neck torch and its camera are not symmetric, so each robot checks which direction it can weld a seam
     in, how to lean the torch (work and travel angles) and from which arm pose it can follow the whole seam, also with
     the car a few centimetres off."""
     best = None
     T0 = np.gradient(sm["P"], axis=0); T0 /= np.linalg.norm(T0, axis=1, keepdims=True)
-    for work, travel in ((0, 0), (15, 0), (-15, 0), (0, 15), (0, -15), (25, 0), (-25, 0), (15, 15), (-15, 15), (15, -15), (-15, -15)):
+    leans = sorted({(w, t) for w in (0, 15, -15, 25, -25, 35, -35, 45, -45) for t in (0, 10, -10, 20, -20, 30, -30)}, key=lambda a: (abs(a[0]) + abs(a[1]), abs(a[1])))
+    taught = TAUGHT.get((robot or {}).get("name", ""), {}).get(sm["name"])
+    tool_clear = taught[4] if taught and len(taught) > 4 else CLEAR_WELD_TOOL
+    if taught:                                            # the lean found before first: checked again, kept if still good
+        leans.remove(tuple(taught[:2])); leans.insert(0, tuple(taught[:2]))
+    for work, travel in leans:
         Nt = []
         for n, t in zip(sm["N"], T0):                        # lean the torch: across the seam, then along it
             n = _rot(t, math.radians(work)) @ n; b = np.cross(n, t); b /= np.linalg.norm(b); n = _rot(b, math.radians(travel)) @ n
             Nt.append(n / np.linalg.norm(n))
         Nt = np.array(Nt)
-        for rev in (False, True):
+        for rev in ((taught[2], not taught[2]) if taught and (work, travel) == tuple(taught[:2]) else (False, True)):
             P = sm["P"][::-1] if rev else sm["P"]; N = Nt[::-1] if rev else Nt
             T = np.gradient(P, axis=0); T /= np.linalg.norm(T, axis=1, keepdims=True)
-            for seed in PLAN_SEEDS:
+            seeds = PLAN_SEEDS
+            if taught and (work, travel, rev) == tuple(taught[:3]):
+                seeds = [PLAN_SEEDS[taught[3]]] + [x for k, x in enumerate(PLAN_SEEDS) if k != taught[3]]
+            for seed in seeds:
                 fails = 0; q_start = None
                 for sh in ([0, 0, 0], [0.035, 0.035, 0.01], [-0.035, -0.035, -0.01], [0.035, -0.035, 0], [-0.035, 0.035, 0]):
                     pts = P + [0, 0, CAR_Z] + np.array(sh)
@@ -185,19 +324,27 @@ def plan_seam(sm, base, Rb):
                         fails += 99; break
                     if q_start is None:
                         q_start = q
+                    q_path = []
                     for j in list(range(2, len(P), 2)) + [len(P) - 1]:
                         q, ok = ik(Rb.T @ tool_frame(N[j], T[j]), Rb.T @ (pts[j] - base), q, iters=40); fails += not ok
+                        q_path.append(q)
+                    if COLL is not None and robot is not None:      # the torch and the arm off the sheet, wherever the car stops
+                        for q in q_path[::2] + q_path[-1:]:
+                            a, t = COLL.car_clear(robot, q, np.eye(3), np.array([STOP_X, 0, CAR_Z]) + np.array(sh), tool_apart=True)
+                            if a < CLEAR_WELD_ARM or t < tool_clear:
+                                fails += 50; break
                     if fails:
                         break
                 if best is None or fails < best[0]:
-                    best = (fails, rev, q_start, Nt, work, travel)
+                    best = (fails, rev, q_start, Nt, work, travel, next(k for k, x in enumerate(PLAN_SEEDS) if x is seed))
                 if fails == 0:
                     break
             if best[0] == 0:
                 break
         if best[0] == 0:
             break
-    fails, rev, q_start, Nt, work, travel = best
+    fails, rev, q_start, Nt, work, travel, seed_no = best
+    sm["taught"] = [work, travel, bool(rev), seed_no] + ([tool_clear] if tool_clear != CLEAR_WELD_TOOL else [])
     sm["N"] = Nt
     if rev:
         sm["P"] = sm["P"][::-1].copy(); sm["N"] = sm["N"][::-1].copy()
@@ -226,8 +373,9 @@ def load_cell():
             s = np.r_[0, np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))]
             seams.append(dict(name=sname, type=TYPES.index(jtype), P=P, N=N, T=T, s=s, length=float(s[-1])))
         Rb = rz(yaw)
+        me = dict(base=base, Rb=Rb, name=name)
         for sm in seams:                                # which way round, and from which arm pose, this robot welds it
-            plan_seam(sm, base, Rb)
+            plan_seam(sm, base, Rb, me)
         home = HOME.copy()
         best = None                                     # turn the folded arm away from the car's path
         for a1 in (-50, -30, 30, 50):
@@ -391,7 +539,7 @@ class CarRun:
         self.q = [r["home"].copy() for r in robots]
         self.state = [0] * 4; self.seam = [-1] * 4; self.prog = [0.0] * 4; self.werr = [0.0] * 4; self.laser = [0] * 4
         self.car_x = ENTRY_X
-        self.est = (np.eye(3), np.array([STOP_X, 0, CAR_Z]))
+        self.est = (np.eye(3), np.array([STOP_X, 0, CAR_Z])); self.localised = False
         self._last_sensor = [-1.0] * 4
 
     # --- car pose
@@ -481,9 +629,72 @@ class CarRun:
     def go(self, i, q1, state=1):
         def g():
             self.state[i] = state
-            for q in self.joint_path(self.q[i], q1):
+            for q in self.safe_path(i, self.q[i], q1):
                 self.q[i] = q; yield
         return g
+
+    # --- moves that keep off the car
+    def clear(self, i, q):
+        Re, pe = self.est
+        return COLL.car_clear(self.R[i], q, Re, pe)
+
+    def segment_ok(self, i, q0, q1):
+        """A joint move q0 -> q1 keeps its distance to the car (where it starts or ends near the sheet, as at a seam,
+        only as close as its ends)."""
+        need = (CLEAR_MOVE if self.localised else CLEAR_UNSURE)
+        c0, c1 = self.clear(i, q0), self.clear(i, q1)
+        need = min(need, max(0.002, min(c0, c1) - 0.002))
+        n = max(2, int(np.max(np.abs(q1 - q0)) / math.radians(6)) + 1)
+        worst = min(c0, c1)
+        for s in np.linspace(0, 1, n + 1)[1:-1]:
+            c = self.clear(i, q0 + (q1 - q0) * s); worst = min(worst, c)
+            if c < need:
+                return False, worst
+        return True, worst
+
+    def off_sheet(self, i, F, p, n, q_seed):
+        """The torch at p (frame F) when it is not welding: drawn back along n until nothing on the robot comes within
+        CLEAR_AIR of the car."""
+        q = q_seed
+        for extra in (0.0, 0.005, 0.01, 0.015, 0.02, 0.03, 0.04, 0.06):
+            q, ok = self.solve(i, F, p + extra * n, q_seed, extra_seeds=False)
+            if COLL is None or self.clear(i, q) >= CLEAR_AIR:
+                return q
+        return q
+
+    def lifted(self, i, q, h, back):
+        """The same tool orientation, the torch raised h m and drawn back towards the robot by back m."""
+        r = self.R[i]; Rt, p, _ = fk(q); pw = r["Rb"] @ p + r["base"]
+        away = np.r_[r["base"][:2] - pw[:2], 0]; away /= max(1e-6, np.linalg.norm(away))
+        qq, ok = ik(Rt, r["Rb"].T @ (pw + [0, 0, h] + back * away - r["base"]), q, iters=80)
+        return qq if ok else None
+
+    def safe_path(self, i, q0, q1):
+        """Joint steps from q0 to q1 around the car: straight if that keeps clear, else through raised via poses."""
+        if COLL is None:
+            return self.joint_path(q0, q1)
+        def vias():
+            for h, back in ((0.15, 0.10), (0.30, 0.25), (0.45, 0.40), (0.25, 0.60), (0.60, 0.20)):
+                a, b = self.lifted(i, q0, h, back), self.lifted(i, q1, h, back)
+                if a is not None and b is not None:
+                    yield [q0, a, b, q1]
+            a, b = self.lifted(i, q0, 0.3, 0.3), self.lifted(i, q1, 0.3, 0.3)
+            yield [q0] + ([a] if a is not None else []) + [self.R[i]["home"]] + ([b] if b is not None else []) + [q1]
+        best = None
+        for c in __import__("itertools").chain([[q0, q1]], vias()):
+            ok, worst = True, 9.0
+            for a, b in zip(c[:-1], c[1:]):
+                o, w = self.segment_ok(i, a, b); worst = min(worst, w)
+                if not o:
+                    ok = False; break
+            if ok:
+                best = (c, worst); break
+            if best is None or worst > best[1]:
+                best = (c, worst)
+        out = []
+        for a, b in zip(best[0][:-1], best[0][1:]):
+            out += self.joint_path(a, b)
+        return out
 
     def wait(self, i, seconds, state=0):
         def g():
@@ -508,11 +719,11 @@ class CarRun:
         def g():
             P, N, T = self.seam_expected(i, k)
             t = T[j]; F = tool_frame(N[j], t)
-            target = P[j] - LOOKAHEAD * F[:, 1]
+            target = P[j] - LOOKAHEAD * F[:, 1] + STANDOFF * N[j]        # the torch held off the sheet: the camera reads depth
             q, ok = self.solve(i, F, target + 0.06 * N[j], self.q[i])
             for _ in self.go(i, q)():
                 yield
-            q2, ok2 = self.solve(i, F, target, q, extra_seeds=False)
+            q2 = self.off_sheet(i, F, target, N[j], q)
             for _ in self.go(i, q2)():
                 yield
             self.state[i] = 2; self.laser[i] = 1
@@ -594,8 +805,8 @@ class CarRun:
                 yield
             self.seam[i] = k; self.prog[i] = 0.0
             back = p0 - LOOKAHEAD * F0[:, 1]                         # first the laser line on the start point
-            for a in np.linspace(0.10, 0.0, 8)[1:]:
-                q, ok = self.solve(i, F0, back + a * n0, self.q[i], extra_seeds=False); self.q[i] = q; yield
+            for a in np.linspace(0.10, STANDOFF, 8)[1:]:
+                self.q[i] = self.off_sheet(i, F0, back + a * n0, n0, self.q[i]); yield
             s = 0.0; s_at = 0.0; errs = []; cnt = dict(reads=0, misses=0); recent = []
             def read(s_at):
                 """The camera, from where the torch is now: the laser line 65 mm ahead of the wire."""
@@ -629,8 +840,12 @@ class CarRun:
             for _ in range(5):
                 read(-LOOKAHEAD); yield
             for a in np.linspace(-LOOKAHEAD, 0.0, 9)[1:]:
-                read(a); pa = p0 + a * F0[:, 1]
-                q, ok = self.solve(i, F0, pa + corr(a), self.q[i], extra_seeds=False); self.q[i] = q; yield
+                read(a); pa = p0 + a * F0[:, 1] + STANDOFF * (-a / LOOKAHEAD) * n0     # down to the sheet only at the start
+                if a < -0.012:
+                    self.q[i] = self.off_sheet(i, F0, pa + corr(a), n0, self.q[i])
+                else:
+                    q, ok = self.solve(i, F0, pa + corr(a), self.q[i], extra_seeds=False); self.q[i] = q
+                yield
             self.state[i] = 3
             while s <= L + 1e-9:
                 read(s_at)
@@ -657,7 +872,7 @@ class CarRun:
             # lift off
             pE, nE, tE = at(L); FE = tool_frame(nE, tE)
             for a in np.linspace(0.0, 0.12, 8)[1:]:
-                q, ok = self.solve(i, FE, pE + a * nE + corr(L), self.q[i], extra_seeds=False); self.q[i] = q; yield
+                self.q[i] = self.off_sheet(i, FE, pE + a * nE + corr(L), nE, self.q[i]); yield
             self.seam[i] = -1
         return g
 
@@ -676,7 +891,7 @@ class CarRun:
         xi = np.linalg.solve(A.T @ A + 1e-6 * np.eye(6), A.T @ b)
         dth = xi[3:]; ang = np.linalg.norm(dth)
         Rd = _rot(dth / ang, ang) if ang > 1e-12 else np.eye(3)
-        self.est = (Rd, c + xi[:3])
+        self.est = (Rd, c + xi[:3]); self.localised = True
         self.est_xi = xi
         return True
 
@@ -704,8 +919,15 @@ class CarRun:
         for i, r in enumerate(self.R):
             plans.append([self.weld(i, k) for k in range(len(r["seams"]))] + [self.go(i, r["home"])])
         self.run_parallel(plans)
+        clr = self.clearances()
         ok = sum(w["ok"] for w in self.welds); worst = max(w["max_mm"] for w in self.welds)
         self.event("Car %d welded: %d of %d seams within %.1f mm (worst %.2f mm)" % (self.no, ok, len(self.welds), self.o["tolerance"], worst))
+        if clr:
+            if clr["collisions"]:
+                self.event("Contact in %d moments (%.1f s): closest %.1f mm to the car, %.0f mm between robots"
+                           % (clr["collisions"], clr["collisions"] * 6 * self.DT, clr["car_clear_mm"], clr["robot_clear_mm"]))
+            else:
+                self.event("No collisions: the robots kept %.1f mm from the car and %.0f mm from each other" % (clr["car_clear_mm"], clr["robot_clear_mm"]))
         [self.emit() for _ in range(int(0.6 / self.DT))]
         self.move_car(STOP_X, EXIT_X, text="Car %d leaves" % self.no)
         Re, pe = self.est
@@ -714,7 +936,26 @@ class CarRun:
                     off_along_mm=round(self.dp[0] * 1000, 1), off_across_mm=round(self.dp[1] * 1000, 1), off_up_mm=round(self.dp[2] * 1000, 1),
                     turned_deg=round(math.degrees(self.err["yaw"]), 3),
                     found_along_mm=round((pe[0] - STOP_X) * 1000, 1), found_across_mm=round(pe[1] * 1000, 1), found_up_mm=round((pe[2] - CAR_Z) * 1000, 1),
-                    found_turned_deg=round(math.degrees(math.atan2(Re[1, 0], Re[0, 0])), 3), camera="on" if self.trk.net is not None else "off")
+                    found_turned_deg=round(math.degrees(math.atan2(Re[1, 0], Re[0, 0])), 3), camera="on" if self.trk.net is not None else "off",
+                    **(clr or {}))
+
+    def clearances(self, every=6):
+        """Over the car so far: the robots' least distance to the real car (the wire and nozzle tip apart) and to each
+        other, and in how many moments anything touched."""
+        if COLL is None:
+            return None
+        car_c, rob_c, hits = 9.0, 9.0, 0
+        for f in self.frames[::every]:
+            Rc = rpy(f[6], f[5], f[4]); pc = np.array(f[1:4]); qs = [np.radians(f[7 + 6 * i: 13 + 6 * i]) for i in range(4)]
+            near = abs(f[1] - STOP_X) < 0.5
+            hit = False
+            for i, r in enumerate(self.R):
+                if near:
+                    c = COLL.car_clear(r, qs[i], Rc, pc); car_c = min(car_c, c); hit |= c < TOUCH
+                for j in range(i + 1, 4):
+                    c = COLL.robots_clear(r, qs[i], self.R[j], qs[j]); rob_c = min(rob_c, c); hit |= c < 0
+            hits += hit
+        return dict(car_clear_mm=round(car_c * 1000, 1), robot_clear_mm=round(rob_c * 1000, 1), collisions=int(hits))
 
 
 # ===================================================================================================== 3D models for the built-in view
@@ -891,7 +1132,7 @@ class LiveRobot:
     "arcs"); this block sends on channel "joints" the angles of the sled, the car and every robot by position (j1, j2,
     ...), and by name the weld beads (each piece of a seam rises from under the floor onto the car as the torch passes
     it, and stays there, dark, until the car has left) and the arcs (a glow at the wire while a robot welds). On channel
-    "scene", the rails."""
+    "scene", nothing for a model with the rail and the bases in it."""
     FAR = 1000.0
 
     def __init__(self, robots, which, model=None):
@@ -901,7 +1142,7 @@ class LiveRobot:
         self.layout = model.get("joints_layout")
         self.hide = float(model.get("hide", 5.0))
         if self.layout:
-            shown = sorted({j.split(":")[0] for j in self.layout if ":" in j and not j.startswith(("car", "bead", "arc"))},
+            shown = sorted({j.split(":")[0] for j in self.layout if ":" in j and not j.startswith(("car", "bead", "arc", "static"))},
                            key=lambda n: names.index(n) if n in names else 9)
             self.show = [names.index(n) for n in shown if n in names]
         else:                                                      # an older model: the car, then one robot (j7-j12)
@@ -923,7 +1164,8 @@ class LiveRobot:
             self.beads.setdefault((i, k), []).append((b["joint"].lower(), s_end))
         self.arcs = {names.index(n): (a["joint"].lower(), float(a["on"])) for n, a in (model.get("arcs") or {}).items() if n in names}
         self.all_beads = [j for v in self.beads.values() for j, _ in v]
-        self.static = [dict(kind="box", center=[0, y, 0.07], size=[24, 0.12, 0.14], color="#9aa1aa") for y in (-0.55, 0.55)]
+        has_rail = any(j.startswith("static:rail") for j in (self.layout or []))
+        self.static = [] if has_rail else [dict(kind="box", center=[0, 0, 0.16], size=[24, 0.22, 0.32], color="#b3141c")]   # (an older model)
         for i, r in enumerate(robots):
             if i not in self.show:
                 b = r["base"]; self.static.append(dict(kind="box", center=[float(b[0]), float(b[1]), float(b[2]) / 2], size=[0.9, 0.9, float(b[2])], color="#4a4f57"))
@@ -969,8 +1211,8 @@ class LiveRobot:
                 v = car[role]
             elif role == "fixed":
                 v = 0.0
-            elif role.startswith(("bead:", "arc:")):
-                continue                                     # these go by name
+            elif role.startswith(("bead:", "arc:", "static:")):
+                continue                                     # by name (the beads, the arcs), or never moved (the rail, the bases)
             else:
                 rname, what = role.split(":"); i = self.names.index(rname)
                 if what in ("yaw", "-yaw"):
@@ -1082,7 +1324,7 @@ def learn(ctx, p, robots, layout, scene):
     vt, vu, vh = sample_joints(torch, VB, vgen, dev); vd, vv = make_profiles(torch, VB, vt, vu, vh, vgen, dev)
     curve = []; t0 = time.time(); step = 0; last_eval = 0; last_replay = -1e9; best = None
     streamer = Streamer(ctx, layout, live=LiveRobot(robots, str(p.get("view_robot") or "front right"), model_layout(ctx))); streamer.start()
-    replay_every = float(p.get("replay_every", 120))
+    replay_every = float(p.get("replay_every", 300))
     rng = np.random.default_rng(int(p.get("seed", 1)))
     opts = car_opts(p)
     replay_box = {"busy": False, "result": None}
@@ -1129,6 +1371,9 @@ def learn(ctx, p, robots, layout, scene):
                 rr = replay_box["result"]; replay_box["result"] = None; last_car = rr; cars += 1
             if last_car:
                 row.update(car_worst_mm=last_car["worst_mm"], car_mean_mm=last_car["mean_mm"], car_seams_ok=last_car["seams_ok"], cars=cars)
+                for k_ in ("car_clear_mm", "robot_clear_mm", "collisions"):
+                    if k_ in last_car:
+                        row[k_ if k_ == "collisions" else "clear_" + k_.split("_")[0] + "_mm"] = last_car[k_]
             curve.append(row); ctx.telemetry("train", row); ctx.progress(min(99, el / minutes * 100), "p95 %.2f mm" % row["p95_mm"])
             ctx.log("[learn] %.1f min step %d loss %.3f median %.3f p95 %.3f mm (confident %.1f%%: %s)" % (el, step, row["loss"], row["median_mm"], row["p95_mm"], row["confident_pct"], row["p95_confident_mm"]))
             if best is None or row["p95_confident_mm"] is not None and row["p95_confident_mm"] < best[0]:
@@ -1226,7 +1471,8 @@ def produce(ctx, p, robots, layout, scene):
         stats["cars"] += 1; stats["seams"] += res["seams"]; stats["ok"] += res["seams_ok"]; stats["worst"] = max(stats["worst"], res["worst_mm"]); stats["cycle"].append(res["cycle_s"])
         line = dict(cars=stats["cars"], seams_ok_pct=round(100 * stats["ok"] / max(1, stats["seams"]), 1), worst_mm=res["worst_mm"],
                     mean_mm=res["mean_mm"], cycle_s=res["cycle_s"], cars_per_hour=round(3600 / float(np.mean(stats["cycle"])), 1),
-                    off_across_mm=res["off_across_mm"], off_along_mm=res["off_along_mm"], found_across_mm=res["found_across_mm"], found_along_mm=res["found_along_mm"])
+                    off_across_mm=res["off_across_mm"], off_along_mm=res["off_along_mm"], found_across_mm=res["found_across_mm"], found_along_mm=res["found_along_mm"],
+                    collisions=res.get("collisions"), clear_car_mm=res.get("car_clear_mm"), clear_robot_mm=res.get("robot_clear_mm"))
         ctx.telemetry("line", line); ctx.telemetry("cell", dict(kind="car", **res))
         ctx.progress(min(99, (stats["cars"] / n_cars * 100) if n_cars else (time.time() - t0) / 60 / max_min * 100), "%d cars" % stats["cars"])
         ctx.log("[line] car %d: %d/%d seams within %.1f mm, worst %.2f mm, cycle %.0f s" % (res["car"], res["seams_ok"], res["seams"], opts["tolerance"], res["worst_mm"], res["cycle_s"]))
@@ -1240,11 +1486,26 @@ def produce(ctx, p, robots, layout, scene):
 
 # ===================================================================================================== entry
 def run(ctx):
+    global COLL
     p = ctx.params
-    robots = load_cell(); layout = layout_item(robots)
+    files = list(ctx.inputs.get("models") or [])
+    glbs = [f for f in files if str(f.name).lower().endswith(".glb")]
+    rf = next((f for f in glbs if re.search(r"kr210|robot|kuka|arm", f.name, re.I)), None); cf = next((f for f in glbs if f is not rf), None)
+    if rf is not None and cf is not None:
+        try:
+            t0 = time.time(); COLL = Collide(rf.path, cf.path)
+            ctx.log("[collide] %d spheres per robot, the car as %d points (%.1f s)" % (len(COLL.r), COLL.car.n, time.time() - t0))
+        except Exception as e:
+            ctx.log("[collide] no collision checks: %r" % e); COLL = None
+    else:
+        ctx.log("[collide] no robot and car models wired in: no collision checks")
+    t0 = time.time(); robots = load_cell(); layout = layout_item(robots)
+    ctx.log("[plan] %d seams planned in %.0f s: %s" % (sum(len(r["seams"]) for r in robots), time.time() - t0,
+                                                     ", ".join("%s %s %s" % (r["name"], sm["name"], sm["taught"]) for r in robots for sm in r["seams"] if sm["plan_fails"])
+                                                     or "every seam reachable and clear"))
     ctx.telemetry("cell", layout)
     mode = str(p.get("mode") or "Learn to follow the seams")
-    models = bake_models(ctx, list(ctx.inputs.get("models") or []), robots)
+    models = bake_models(ctx, files, robots)
     scene = SceneWriter(ctx, robots, models, "Welding cell · " + ("learning" if mode.startswith("Learn") else "production line"))
     scene.write()
     if mode.startswith("Learn"):
