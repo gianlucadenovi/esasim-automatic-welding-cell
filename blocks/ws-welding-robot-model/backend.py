@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell model (ws-welding-robot-model) · version 18 · machine block, Python: def run(ctx)
+# Welding cell model (ws-welding-robot-model) · version 19 · machine block, Python: def run(ctx)
 # The welding cell for EsaSim's 3D view: the four KUKA KR 210 robots with their swan-neck torches and the car body frame on its sled, one model with each part in its own material.
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -364,9 +364,9 @@ def cabinet_meshes(cx, cy):
     """An industrial control cabinet (the robot's controller and the cell's PLC): a 0.8 x 0.5 x 2.0 m steel enclosure
     on a plinth, its door toward the rail, with a handle, an operator panel and signal lamps."""
     s = -math.copysign(1, cy); W, D, H = 0.8, 0.5, 2.0; fy = cy + s * D / 2          # s: toward the rail; fy: the front
-    body = [box_mesh([cx, cy, 0.1 + H / 2], [W, D, H]), box_mesh([cx, cy, 0.1 + H + 0.02], [W + 0.04, D + 0.04, 0.04])]
-    door = [box_mesh([cx, fy + s * 0.008, 0.1 + H / 2], [W - 0.04, 0.016, H - 0.08])]
-    dark = [box_mesh([cx, cy, 0.05], [W, D, 0.1]), box_mesh([cx + 0.3, fy + s * 0.03, 1.1], [0.03, 0.03, 0.26]),
+    body = [g_rbox([cx, cy, 0.1 + H / 2], [W, D, H], 0.022), g_rbox([cx, cy, 0.1 + H + 0.02], [W + 0.04, D + 0.04, 0.04], 0.014)]   # (rounded edges)
+    door = [g_rbox([cx, fy + s * 0.004, 0.1 + H / 2], [W - 0.04, 0.024, H - 0.08], 0.01)]
+    dark = [g_rbox([cx, cy, 0.05], [W - 0.01, D - 0.01, 0.1], 0.01), g_rbox([cx + 0.3, fy + s * 0.03, 1.1], [0.03, 0.03, 0.26], 0.008),
             box_mesh([cx - 0.08, fy + s * 0.02, 1.45], [0.36, 0.012, 0.28])]
     screen = [box_mesh([cx - 0.08, fy + s * 0.027, 1.47], [0.28, 0.004, 0.18])]
     green = [cyl_axis([cx - 0.2, fy + s * 0.016, 1.78], [cx - 0.2, fy + s * 0.04, 1.78], 0.022)]
@@ -614,7 +614,7 @@ def g_rbox(c, size, r, k=4):
     V = inner + np.where(ln[:, None] > 1e-9, off / np.maximum(ln, 1e-9)[:, None] * r, 0)
     key = np.round(V, 7); u, inv = np.unique(key, axis=0, return_inverse=True); inv = inv.ravel()
     F = inv[np.array(F)]; F = F[(F[:, 0] != F[:, 1]) & (F[:, 1] != F[:, 2]) & (F[:, 0] != F[:, 2])]
-    return u + np.asarray(c, float), F
+    return u + np.asarray(c, float), F[:, ::-1]                         # (faces turned outward)
 
 
 def g_orient(v, f, R, t):
