@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell model (ws-welding-robot-model) · version 5 · machine block, Python: def run(ctx)
+# Welding cell model (ws-welding-robot-model) · version 6 · machine block, Python: def run(ctx)
 # The welding cell for EsaSim's 3D view: the four KUKA KR 210 robots with their swan-neck torches and the car body frame on its sled, one model with each part in its own material.
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -33,8 +33,8 @@ EsaSim's 3D view poses one chain of joints. The cell is laid out along it:
 The Welding cell block sends every angle on its joints channel (j1, j2, ... in degrees) and the joint list here
 ("joints_layout") says what each one is. EsaSim's 3D view must read more than 12 joints for the whole cell.
 
-From kr210_weld.glb (the rigged robot with its swan-neck MIG torch, wire feeder and seam camera) the robot is cut
-into its links and colours, simplified to keep the file small, its vertices split at sharp edges so the castings keep
+From kr210_weld.glb (the rigged robot with its swan-neck MIG torch and seam camera) the robot is cut into its links
+and colours (without the black cover box on top of the forearm and its lettering, the wire feeder or the hose), simplified to keep the file small, its vertices split at sharp edges so the castings keep
 their edges. The car frame is s15_frame.glb (any other .glb of the dataset), whole, in satin silver; its open sheet-metal panels
 get a back copy so they show from both sides. Without the GLBs, boxes stand in.
 Welds: every seam is cut into pieces of dark weld bead (about 4 cm each) riding on the car, each on a straight joint
@@ -139,6 +139,24 @@ def colour(m):
         return ("#9aa1aa", 0.1, 0.5)
 
 
+DROP_NODES = {"wire_feeder", "hose"}      # the wire feeder (box and spool) and the hose along the forearm: not wanted
+COVER_Y = 1.98                            # m (GLB, y up): what is on top of the forearm above this is the cover box
+
+
+def without_cover(trimesh, m):
+    """The forearm without the black cover box on top of it and its KUKA lettering (every piece of mesh whose
+    middle lies above COVER_Y)."""
+    lab = trimesh.graph.connected_component_labels(m.face_adjacency, node_count=len(m.faces))
+    top = np.zeros(len(m.faces), bool); cy = m.triangles_center[:, 1]
+    for l in np.unique(lab):
+        sel = lab == l
+        if cy[sel].mean() > COVER_Y:
+            top |= sel
+    if top.any():
+        m = m.copy(); m.update_faces(~top); m.remove_unreferenced_vertices()
+    return m
+
+
 def robot_parts(ctx, path, budget):
     """{link: [(colour, vertices in the robot frame, faces), ...]} from the rigged GLB."""
     import trimesh
@@ -152,7 +170,13 @@ def robot_parts(ctx, path, budget):
             n = par.get(n)
         if link is None:
             continue
+        if node in DROP_NODES:
+            continue
         T, gname = g[node]; m = sc.geometry[gname].copy(); m.apply_transform(T)
+        if link == "a3":
+            m = without_cover(trimesh, m)
+            if not len(m.faces):
+                continue
         groups.setdefault(link, {}).setdefault(colour(m), []).append(m)
     total = sum(len(m.faces) for d in groups.values() for ms in d.values() for m in ms)
     out = {}
