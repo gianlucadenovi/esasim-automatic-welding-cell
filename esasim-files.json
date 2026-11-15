@@ -16,16 +16,16 @@
             "made_by": [
                 "1 · Learn to follow the seams: Welding cell: learn to follow the seams"
             ],
-            "version": 4,
-            "files": 4,
-            "bytes": 7923210,
-            "key": "070fee99fb6a6304ba0c33959c92924ca07942b3a317ed8f72992e13d3c78490",
+            "version": 5,
+            "files": 5,
+            "bytes": 10257803,
+            "key": "2edfcda919689558b36cc19662e974132fb2d9feef1383900d55d7b17fa23d4c",
             "parts": [
                 {
                     "zip": "files/weld-tracker.zip",
-                    "size": 6789569,
-                    "sha256": "076e18e46612fbf5fafc6e9c7ba06ea28bee5a29e7aae82bb9f70df0d5c58812",
-                    "files": 4,
+                    "size": 8957477,
+                    "sha256": "48a884087c9e181a7cc99903190ee429f6095ab56b90be416acf22b57686d954",
+                    "files": 5,
                     "in": "repo"
                 }
             ],
@@ -48,5 +48,5 @@
             "in": "repo"
         }
     ],
-    "saved": "2026-11-15T08:17:14+00:00"
+    "saved": "2026-11-15T08:31:56+00:00"
 }
