@@ -632,7 +632,8 @@ var g = new THREE.BufferGeometry(), pos = new Float32Array(l.v.length);
 for (var n = 0; n < l.v.length; n++) pos[n] = l.v[n] * k;
 g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setIndex(l.f); g.computeVertexNormals();
 var m = new THREE.Mesh(g, mat(i, l)); m.castShadow = !ghost && !l.emissive && l.shadow !== false; m.receiveShadow = !ghost; holder.add(m);
-if (!ghost && l.fx) { m.userData.fx = l.fx; fxMeshes.push(m); }
+var fx_ = l.fx || (J[i - 1] && /^bead:/i.test(J[i - 1].name || '') ? 'bead' : null);
+if (!ghost && fx_) { m.userData.fx = fx_; fxMeshes.push(m); if (fx_ === 'bead') m.castShadow = false; }
 if (!ghost && l.envmap === 'cube') cubeMeshes.push(m);
 }
 link(0, root);
@@ -758,24 +759,58 @@ var light = new THREE.PointLight(0x8fb6ff, 0, 3, 2); light.castShadow = false; s
 A_ = RFX.arcs[key] = { glow: glow, light: light, sparkAcc: 0, smokeAcc: 0, burst: 0 };
 return A_;
 }
+// weld beads: hidden until their joint has lifted them onto the car (the torch has passed), then glowing red, cooling to dark grey
+var RFXC = new THREE.Color();
+function rfxBead(m, H) {
+var u = m.userData, first = !u.seen; u.seen = true;
+var up = m.parent ? m.parent.position.length() : 0;
+if (up < H - 0.01) { m.visible = false; u.bt = null; return; }
+m.visible = true;
+if (u.c0 == null) { u.c0 = m.material.color.clone(); if (!m.material.emissive) return; }
+if (u.bt == null) u.bt = first || RFX.t < 3 ? -1e9 : RFX.t;
+var h = Math.exp(-(RFX.t - u.bt) / 2.2);
+if (h < 0.01) { if (u.hot) { u.hot = false; m.material.color.copy(u.c0); m.material.emissive.setRGB(0, 0, 0); m.material.emissiveIntensity = 1; } return; }
+u.hot = true;
+m.material.emissive.setRGB(1, 0.06 + 0.3 * h * h, 0.02 * h); m.material.emissiveIntensity = 3.2 * Math.pow(h, 1.5);
+m.material.color.copy(u.c0).lerp(RFXC.setRGB(0.35, 0.04, 0.02), Math.min(1, 1.4 * h));
+}
+// the arc's sound: a crackle (short clicks of filtered noise, the bacon-frying of a MIG arc) over a hiss, louder near the camera
+function rfxCrackle(A_, p, lvl, dt) {
+var A = AUD.ctx; if (!A || !AUD.nodes || !AUD.on || document.hidden) return;
+var d = camera.position.distanceTo(p), near = 1 / (1 + d * d / 6);
+RFX.loud += near;
+if (!A_.wasOn) { A_.wasOn = true; audBurst({ f: 1400, type: 'bandpass', Q: 0.6, a: 0.002, d: 0.22, g: 0.9 * near }); audBurst({ f: 260, type: 'lowpass', a: 0.002, d: 0.08, g: 0.6 * near, brown: true }); }
+A_.crackAcc = (A_.crackAcc || 0) + dt * (16 + 26 * lvl);
+var n = 0; while (A_.crackAcc >= 1 && n < 6) { A_.crackAcc -= 1; n++;
+audBurst({ f: 1600 + Math.random() * 5200, type: 'bandpass', Q: 0.7 + Math.random() * 2.2, a: 0.0008, d: 0.006 + Math.random() * Math.random() * 0.06, g: (0.12 + 0.75 * Math.random() * Math.random()) * near, at: Math.random() * dt }); }
+if (Math.random() < dt * 3) audBurst({ f: 380, type: 'lowpass', a: 0.001, d: 0.05, g: 0.35 * near, brown: true });
+}
+function rfxHiss() {
+var A = AUD.ctx; if (!A || !AUD.nodes) return;
+if (!RFX.hiss) { var s0 = A.createBufferSource(); s0.buffer = AUD.nodes.white; s0.loop = true; var fl = A.createBiquadFilter(); fl.type = 'highpass'; fl.frequency.value = 2200; var g = A.createGain(); g.gain.value = 0; s0.connect(fl); fl.connect(g); g.connect(AUD.nodes.master); s0.start(); RFX.hiss = g; }
+var v = AUD.on && !document.hidden ? 0.05 * Math.min(1.6, RFX.loud) : 0;
+RFX.hiss.gain.setTargetAtTime(v, A.currentTime, 0.06);
+}
 var RFXV = new THREE.Vector3();
 function rfxStep(dt) {
-RFX.t += dt;
+RFX.t += dt; RFX.loud = 0;
 var live = {}, anyArc = false;
 units().forEach(function (U) {
 if (!U.arm || !U.arm.userData.fx) return;
+var BH = (U.model && +U.model.hide) || 5;
 U.arm.userData.fx.forEach(function (m, n) {
+if (m.userData.fx === 'bead') { rfxBead(m, BH); return; }
 var key = U.id + '#' + n, A_ = rfxArc(key); live[key] = 1;
 var on = m.parent && m.parent.position.lengthSq() > 0.0025;
 m.visible = on;
-A_.glow.visible = on; if (!on) { A_.light.intensity = 0; return; }
+A_.glow.visible = on; if (!on) { A_.light.intensity = 0; A_.wasOn = false; return; }
 anyArc = true;
 m.getWorldPosition(RFXV);
 if (Math.random() < dt * 6) A_.burst = 0.6 + Math.random() * 0.8;
 A_.burst = Math.max(0, A_.burst - dt * 5);
 var lvl = 0.35 + 0.65 * Math.random() * Math.random() + A_.burst;
-A_.light.position.copy(RFXV); A_.light.intensity = 1.5 + 3.5 * lvl;
-A_.glow.position.copy(RFXV); var gs = 0.018 + 0.03 * lvl; A_.glow.scale.set(gs, gs, 1);
+A_.light.position.copy(RFXV); A_.light.intensity = 0.35 + 0.8 * lvl; rfxCrackle(A_, RFXV, lvl, dt);
+A_.glow.position.copy(RFXV); var gs = 0.015 + 0.024 * lvl; A_.glow.scale.set(gs, gs, 1);
 A_.glow.material.color.setRGB(0.75 + 0.25 * Math.random(), 0.85 + 0.15 * Math.random(), 1);
 var S = rfxSparks(); A_.sparkAcc += dt * (400 + 900 * lvl);
 while (A_.sparkAcc >= 1) { rfxEmitSpark(S, RFXV); A_.sparkAcc -= 1; }
@@ -784,6 +819,7 @@ while (A_.smokeAcc >= 1) { rfxEmitSmoke(M, RFXV); A_.smokeAcc -= 1; }
 });
 });
 Object.keys(RFX.arcs).forEach(function (k) { if (!live[k]) { RFX.arcs[k].glow.visible = false; RFX.arcs[k].light.intensity = 0; } });
+rfxHiss();
 if (RFX.sparks) rfxStepSparks(RFX.sparks, dt);
 if (RFX.smoke) rfxStepSmoke(RFX.smoke, dt);
 rfxHall(); rfxCube();
