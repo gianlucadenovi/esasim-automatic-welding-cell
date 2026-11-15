@@ -981,14 +981,8 @@ var lm = new THREE.MeshBasicMaterial({ toneMapped: false }); lm.color.setRGB(2.6
 var lamp = new THREE.InstancedMesh(lg, lm, at.length), halo = new THREE.InstancedMesh(hg, new THREE.MeshBasicMaterial({ map: T.glow, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), at.length);
 at.forEach(function (p, i) { lamp.setMatrixAt(i, M.makeTranslation(p[0], Hh - 0.3, p[1])); halo.setMatrixAt(i, M.makeTranslation(p[0], Hh - 0.02, p[1])); });
 lamp.frustumCulled = halo.frustumCulled = false; hall.add(lamp, halo);
-var FT = hmTextures();
-var fm = new THREE.MeshStandardMaterial({ map: FT.floor, roughnessMap: FT.floorRough, roughness: +H.floor_roughness || 0.42, metalness: 0.0, envMapIntensity: 0.75 });
-fm.onBeforeCompile = function (sh) {
-sh.vertexShader = 'varying vec3 vWp;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-sh.fragmentShader = 'varying vec3 vWp;\n' + sh.fragmentShader.replace('#include <map_fragment>', '  vec4 sampledDiffuseColor = texture2D(map, vWp.xz / 4.0); diffuseColor *= sampledDiffuseColor;')
-.replace('#include <roughnessmap_fragment>', 'float roughnessFactor = roughness; roughnessFactor *= 0.6 + 0.8 * texture2D(roughnessMap, vWp.xz / 7.0).g;');
-};
-fm.customProgramCacheKey = function () { return 'robot-hall-floor'; };
+var WT = hmWhTex(), ft = WT.whFloor.clone(); ft.userData = WT.whFloor.userData; ft.wrapS = ft.wrapT = THREE.RepeatWrapping; ft.repeat.set(LX / 6, BD / 6); ft.needsUpdate = true;   // the Spot warehouse's floor: blue-grey epoxy, 6 m between saw cuts, scuffs that blur its reflection
+var fm = hmPbr(new THREE.MeshStandardMaterial({ map: ft, roughness: +H.floor_roughness || 0.42, metalness: 0, envMapIntensity: 0.45 }));
 var fl = new THREE.Mesh(new THREE.PlaneGeometry(LX, BD), fm); fl.rotation.x = -Math.PI / 2; fl.position.set(xc, 0, zc); fl.receiveShadow = true; hall.add(fl);
 scene.add(hall);
 var es = new THREE.Scene(); es.background = new THREE.Color(0x232a33);
