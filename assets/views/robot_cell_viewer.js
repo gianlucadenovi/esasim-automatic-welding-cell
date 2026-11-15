@@ -937,7 +937,7 @@ var pts = [];
 Object.keys(box).forEach(function (r) { var b = box[r], c = [(b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2], e = [b[3] - b[0], b[4] - b[1], b[5] - b[2]];
 var ax = e[0] >= e[1] && e[0] >= e[2] ? 0 : e[1] >= e[2] ? 1 : 2, p0 = c.slice(), p1 = c.slice(); p0[ax] = b[ax]; p1[ax] = b[ax + 3]; pts.push(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2]); });
 var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-var ln = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xff3b2f, transparent: true, opacity: 0.55, toneMapped: false, depthWrite: false }));
+var ln = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xd8382c, transparent: true, opacity: 0.2, depthWrite: false }));
 ln.renderOrder = 2; m.parent.add(ln); ln.position.copy(m.position); ln.quaternion.copy(m.quaternion); m.visible = false;
 }
 // the robots' dress packs: a black corrugated conduit from the base through the clamps on the links to the torch or
