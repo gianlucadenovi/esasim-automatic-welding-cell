@@ -791,6 +791,63 @@ if (!RFX.hiss) { var s0 = A.createBufferSource(); s0.buffer = AUD.nodes.white; s
 var v = AUD.on && !document.hidden ? 0.05 * Math.min(1.6, RFX.loud) : 0;
 RFX.hiss.gain.setTargetAtTime(v, A.currentTime, 0.06);
 }
+// motor sounds: the sled's electric drive on the rail (a gentle hum and whine that follow its speed) and, for every
+// axis of every robot, a faint servo whine while it turns (lower for the big axes, higher for the wrist); all fade with
+// the camera's distance
+var RFXV2 = new THREE.Vector3(), RFXV3 = new THREE.Vector3();
+function rfxMotors(dt) {
+var A = AUD.ctx; if (!A || !AUD.nodes || !(dt > 0)) return;
+var U0 = firstUnit(); if (!U0 || !U0.arm) return;
+var ud = U0.arm.userData, on = AUD.on && !document.hidden, now = A.currentTime;
+if (!RFX.mot) {
+var M = RFX.mot = { rail: null, servos: [], carPrev: null, carV: 0 };
+var rg = A.createGain(); rg.gain.value = 0; rg.connect(AUD.nodes.master);
+var o1 = A.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 45; var l1 = A.createBiquadFilter(); l1.type = 'lowpass'; l1.frequency.value = 320; l1.Q.value = 0.8; o1.connect(l1); l1.connect(rg); o1.start();
+var o2 = A.createOscillator(); o2.type = 'sine'; o2.frequency.value = 700; var g2 = A.createGain(); g2.gain.value = 0; o2.connect(g2); g2.connect(AUD.nodes.master); o2.start();
+var nz = A.createBufferSource(); nz.buffer = AUD.nodes.brown; nz.loop = true; var l3 = A.createBiquadFilter(); l3.type = 'lowpass'; l3.frequency.value = 220; var g3 = A.createGain(); g3.gain.value = 0; nz.connect(l3); l3.connect(g3); g3.connect(AUD.nodes.master); nz.start();
+M.rail = { g: rg, o1: o1, o2: o2, g2: g2, g3: g3 };
+var names = ud.names || {}, base = [150, 175, 210, 380, 460, 540];
+(U0.model && U0.model.robots || []).forEach(function (rb) {
+for (var k = 1; k <= 6; k++) {
+var idx = names[(rb + ':a' + k).toLowerCase()]; if (idx == null || !ud.joints[idx]) continue;
+var o = A.createOscillator(); o.type = 'triangle'; o.frequency.value = base[k - 1];
+var bp = A.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = base[k - 1] * 2; bp.Q.value = 3;
+var g = A.createGain(); g.gain.value = 0; o.connect(bp); bp.connect(g); g.connect(AUD.nodes.master); o.start();
+M.servos.push({ j: ud.joints[idx], q: ud.joints[idx].quaternion.clone(), w: 0, f0: base[k - 1], o: o, bp: bp, g: g });
+}
+});
+}
+var M = RFX.mot;
+// the sled: the speed of the car's middle
+var car = ud.cube && ud.cube[0];
+if (car) {
+if (!car.geometry.boundingSphere) car.geometry.computeBoundingSphere();
+car.localToWorld(RFXV2.copy(car.geometry.boundingSphere.center));
+var v = M.carPrev ? RFXV2.distanceTo(M.carPrev) / dt : 0;
+if (!M.carPrev) M.carPrev = new THREE.Vector3();
+M.carPrev.copy(RFXV2);
+if (v > 6) v = 0;                                                     // a new car put back at the start: not a move
+M.carV += (v - M.carV) * Math.min(1, dt * 5);
+var lv = Math.min(1, M.carV / 0.5), d = camera.position.distanceTo(RFXV2), near = 1 / (1 + d * d / 40), R = M.rail;
+R.g.gain.setTargetAtTime(on ? 0.07 * lv * near : 0, now, 0.08);
+R.o1.frequency.setTargetAtTime(38 + 60 * lv, now, 0.1);
+R.o2.frequency.setTargetAtTime(520 + 1100 * lv, now, 0.1);
+R.g2.gain.setTargetAtTime(on ? 0.006 * lv * near : 0, now, 0.08);
+R.g3.gain.setTargetAtTime(on ? 0.09 * lv * near : 0, now, 0.08);
+}
+// the servos: each axis's turning speed
+M.servos.forEach(function (s) {
+var w = s.j.quaternion.angleTo(s.q) / dt; s.q.copy(s.j.quaternion);
+if (w > 12) w = 0;                                                    // a jump (the view opening, a new pose): not a move
+s.w += (w - s.w) * Math.min(1, dt * 8);
+var lv = Math.min(1, s.w / 1.0);
+s.j.getWorldPosition(RFXV3);
+var d = camera.position.distanceTo(RFXV3), near = 1 / (1 + d * d / 10);
+s.g.gain.setTargetAtTime(on && lv > 0.01 ? 0.012 * Math.sqrt(lv) * near : 0, now, 0.05);
+s.o.frequency.setTargetAtTime(s.f0 * (1 + 1.6 * lv), now, 0.05);
+s.bp.frequency.setTargetAtTime(s.f0 * 2 * (1 + 1.6 * lv), now, 0.05);
+});
+}
 var RFXV = new THREE.Vector3();
 function rfxStep(dt) {
 RFX.t += dt; RFX.loud = 0;
@@ -819,7 +876,7 @@ while (A_.smokeAcc >= 1) { rfxEmitSmoke(M, RFXV); A_.smokeAcc -= 1; }
 });
 });
 Object.keys(RFX.arcs).forEach(function (k) { if (!live[k]) { RFX.arcs[k].glow.visible = false; RFX.arcs[k].light.intensity = 0; } });
-rfxHiss();
+rfxHiss(); rfxMotors(dt);
 if (RFX.sparks) rfxStepSparks(RFX.sparks, dt);
 if (RFX.smoke) rfxStepSmoke(RFX.smoke, dt);
 rfxHall(); rfxCube(anyArc);
