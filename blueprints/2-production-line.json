@@ -1,0 +1,15 @@
+{
+    "esasim": {
+        "kind": "blueprint",
+        "flow_id": 69
+    },
+    "name": "2 · Production line",
+    "description": "Car after car: the sled brings the frame in, the four robots find it with their laser cameras, weld their quarter of it following the seams, and the car slides out for the next one.",
+    "published_version": 0,
+    "updated": "2026-11-15 00:41:00",
+    "graph": {
+        "nodes": [],
+        "edges": [],
+        "notes": []
+    }
+}

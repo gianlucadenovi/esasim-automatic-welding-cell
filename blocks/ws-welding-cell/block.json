@@ -1,0 +1,248 @@
+{
+    "id": "ws-welding-cell",
+    "version": "1",
+    "name": "Welding cell",
+    "category": "Simulation",
+    "icon": "robot-arm",
+    "side": "backend",
+    "customizable": true,
+    "summary": "Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam; learn on the GPU, then run the line car after car.",
+    "help": "What to do: Learn to follow the seams (NVIDIA GPU) trains the seam camera's network on simulated laser profiles and, every couple of minutes, welds a whole car with it in the 3D view; the network goes out as seam_tracker_<date>_<p95>um.pt (send it to a dataset wired back to Seam tracker so learning goes on from it). Run the production line (any machine) welds car after car with the newest network: the sled brings the car in (it stops within ±3 cm), the four robots read two reference points each with their laser line and find the car's position and turn, then weld their seams following the camera, and the car leaves for the next one. Seam camera off (or no network yet) welds the taught programme as it is, to compare. Results: every weld (worst and mean distance from the real seam, in mm) and every car (where it really was and where the robots found it, cycle time).",
+    "inputs": [
+        {
+            "id": "tracker",
+            "label": "Seam tracker",
+            "type": "files",
+            "many": true,
+            "optional": true,
+            "formats": [
+                "pt"
+            ],
+            "help": "The weld-tracker dataset (seam_tracker_*.pt): the line uses the newest; learning goes on from it"
+        }
+    ],
+    "outputs": [
+        {
+            "id": "tracker",
+            "label": "Seam tracker",
+            "type": "files",
+            "formats": [
+                "pt"
+            ],
+            "help": "Learn: seam_tracker_<date>_<p95>um.pt (the network and its scores)"
+        },
+        {
+            "id": "curve",
+            "label": "Learning curve",
+            "type": "table",
+            "formats": [
+                "csv"
+            ],
+            "help": "Learn: training.csv, every 15 s"
+        },
+        {
+            "id": "welds",
+            "label": "Welds",
+            "type": "table",
+            "formats": [
+                "csv"
+            ],
+            "help": "Line: welds.csv, one row per seam of every car"
+        },
+        {
+            "id": "cars",
+            "label": "Cars",
+            "type": "table",
+            "formats": [
+                "csv"
+            ],
+            "help": "Line: cars.csv, where each car really was and where the robots found it, cycle time, worst weld"
+        },
+        {
+            "id": "metadata",
+            "label": "Summary",
+            "type": "files",
+            "formats": [
+                "json"
+            ]
+        }
+    ],
+    "params": [
+        {
+            "key": "mode",
+            "label": "What to do",
+            "type": "select",
+            "default": "Learn to follow the seams",
+            "options": [
+                "Learn to follow the seams",
+                "Run the production line"
+            ]
+        },
+        {
+            "key": "accelerator",
+            "label": "Accelerator (learning)",
+            "type": "select",
+            "default": "auto",
+            "options": [
+                "auto",
+                "NVIDIA GPU",
+                "CPU"
+            ]
+        },
+        {
+            "key": "minutes",
+            "label": "Learning: minutes at most",
+            "type": "number",
+            "default": 20,
+            "min": 1,
+            "max": 600
+        },
+        {
+            "key": "target_mm",
+            "label": "Learning: stop at (mm, 95 % of readings)",
+            "type": "number",
+            "default": 0.3,
+            "min": 0.05,
+            "max": 5
+        },
+        {
+            "key": "batch",
+            "label": "Learning: profiles per step",
+            "type": "number",
+            "default": 2048,
+            "min": 128,
+            "max": 16384
+        },
+        {
+            "key": "lr",
+            "label": "Learning rate",
+            "type": "number",
+            "default": 0.002,
+            "min": 1.0e-5,
+            "max": 0.05
+        },
+        {
+            "key": "replay_every",
+            "label": "Learning: weld a car every (s)",
+            "type": "number",
+            "default": 120,
+            "min": 20,
+            "max": 3600
+        },
+        {
+            "key": "from_scratch",
+            "label": "Learning: start from scratch",
+            "type": "bool",
+            "default": false
+        },
+        {
+            "key": "tracker_file",
+            "label": "Seam tracker file",
+            "type": "text",
+            "default": "",
+            "help": "Empty: the newest"
+        },
+        {
+            "key": "cars",
+            "label": "Line: cars",
+            "type": "number",
+            "default": 0,
+            "min": 0,
+            "max": 10000,
+            "help": "0: until the time limit"
+        },
+        {
+            "key": "max_minutes",
+            "label": "Line: minutes at most",
+            "type": "number",
+            "default": 30,
+            "min": 1,
+            "max": 1440
+        },
+        {
+            "key": "weld_speed",
+            "label": "Welding speed (mm/s)",
+            "type": "number",
+            "default": 80,
+            "min": 10,
+            "max": 250
+        },
+        {
+            "key": "tolerance_mm",
+            "label": "Weld tolerance (mm)",
+            "type": "number",
+            "default": 1,
+            "min": 0.1,
+            "max": 10,
+            "help": "A seam passes when the wire never strays further than this from the real seam"
+        },
+        {
+            "key": "sled_error_mm",
+            "label": "Sled stop accuracy (± mm)",
+            "type": "number",
+            "default": 30,
+            "min": 0,
+            "max": 45
+        },
+        {
+            "key": "car_offset_mm",
+            "label": "Car on the sled (± mm)",
+            "type": "number",
+            "default": 8,
+            "min": 0,
+            "max": 15
+        },
+        {
+            "key": "car_turn_deg",
+            "label": "Car turned on the sled (± deg)",
+            "type": "number",
+            "default": 0.4,
+            "min": 0,
+            "max": 1
+        },
+        {
+            "key": "build_mm",
+            "label": "Frame build variation (mm)",
+            "type": "number",
+            "default": 1.2,
+            "min": 0,
+            "max": 4,
+            "help": "How far each car's seams wander from the drawing"
+        },
+        {
+            "key": "seam_camera",
+            "label": "Seam camera",
+            "type": "bool",
+            "default": true,
+            "help": "Off: weld the taught programme as it is, to compare"
+        },
+        {
+            "key": "seed",
+            "label": "Seed",
+            "type": "number",
+            "default": 1
+        }
+    ],
+    "hardware": [
+        "cpu",
+        "nvidia"
+    ],
+    "hardware_by": {
+        "param": "mode",
+        "map": {
+            "Learn to follow the seams": [
+                "nvidia"
+            ],
+            "Run the production line": [
+                "cpu"
+            ]
+        }
+    },
+    "packages": [
+        "torch[cuda]",
+        "numpy"
+    ],
+    "esasim": {
+        "version": 1
+    }
+}
