@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell model (ws-welding-robot-model) · version 9 · machine block, Python: def run(ctx)
+# Welding cell model (ws-welding-robot-model) · version 10 · machine block, Python: def run(ctx)
 # The welding cell for EsaSim's 3D view: the four KUKA KR 210 robots with their swan-neck torches and the car body frame on its sled, one model with each part in its own material.
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -57,8 +57,14 @@ import re
 
 import numpy as np
 
-ROBOTS = [("front right", 1.35, -2.00, 0.45, 1.0), ("front left", 1.35, 2.00, 0.45, 1.0),
+CELL_A_X, CELL_B_X = -5.5, 5.5          # m along the rail: the MIG cell (entry side) and the spot welding cell (exit side)
+LAYOUT = [("front right", 1.35, -2.00, 0.45, 1.0), ("front left", 1.35, 2.00, 0.45, 1.0),     # in a cell: name, base x, y, z, aim x
           ("rear right", -1.40, -2.30, 0.40, -1.0), ("rear left", -1.40, 2.30, 0.40, -1.0)]
+ROBOTS = [(n, x + CELL_A_X, y, z, a + CELL_A_X) for n, x, y, z, a in LAYOUT]                    # the MIG robots (seam welding)
+SPOT_ROBOTS = [("spot " + n, x + CELL_B_X, y, z, a + CELL_B_X) for n, x, y, z, a in LAYOUT]     # the spot welding robots
+SPOT_DROP = {"torch_tip", "torch_nozzle", "torch_body", "torch_brass", "torch_clamp", "camera_lens", "camera_body"}
+MARK_MAT = ("#3b3733", 0.55, 0.45)      # a spot weld: a dark, heat-tinted dimple on both sides of the sheet
+SPOTS_JSON = r'''{"spot front right":[[0.651,-0.88,0.2376,-0.0549,-0.7404,0.6699],[0.721,-0.9522,0.114,-0.037,-0.9975,0.0601],[0.7256,-0.9656,-0.0266,0.1172,-0.993,0.0166],[0.7212,-0.9628,-0.1401,0.1061,-0.9923,-0.0641],[0.7144,-0.9589,-0.2248,-0.162,-0.9819,-0.0976],[1.6817,-1.0231,-0.0376,0.1458,-0.9859,-0.0818]],"spot front left":[[0.651,0.88,0.2376,-0.0549,0.7404,0.6699],[0.721,0.9522,0.114,-0.037,0.9975,0.0601],[0.7256,0.9656,-0.0266,0.1172,0.993,0.0166],[0.7212,0.9628,-0.1401,0.1061,0.9923,-0.0641],[0.7144,0.9589,-0.2248,-0.162,0.9819,-0.0976],[1.6817,1.0231,-0.0376,0.1458,0.9859,-0.0818]],"spot rear right":[[-1.2316,-0.7949,0.3966,-0.6209,-0.782,-0.0543],[-0.7072,-0.9583,0.1695,-0.0063,-0.9785,0.2059],[-0.6966,-0.9528,0.1857,-0.009,-0.9445,0.3284],[-0.6947,-0.9643,0.1437,0.0229,-0.9759,0.2171],[-2.0073,-0.9592,-0.1403,-0.171,-0.982,-0.0802],[-2.3189,-0.9062,-0.0935,-0.2034,-0.9779,-0.0487]],"spot rear left":[[-1.2316,0.7949,0.3966,-0.6209,0.782,-0.0543],[-0.7072,0.9583,0.1695,-0.0063,0.9785,0.2059],[-0.6966,0.9528,0.1857,-0.009,0.9445,0.3284],[-0.6947,0.9643,0.1437,0.0229,0.9759,0.2171],[-2.0073,0.9592,-0.1403,-0.171,0.982,-0.0802],[-2.3189,0.9062,-0.0935,-0.2034,0.9779,-0.0487]]}'''   # the spot welds, car frame (m): {robot: [[x, y, z, nx, ny, nz] (sheet normal toward the robot), ...]}, in welding order
 W = np.array([[0, 0, 1], [0, -1, 0], [0, -1, 0], [1, 0, 0], [0, -1, 0], [1, 0, 0]], float)
 QP = np.array([[0, 0, 0], [0.349, 0, 0.678], [0.349, 0, 1.825], [0.70, 0, 1.784], [1.575, 0, 1.784], [1.79, 0, 1.784]])
 LINKS = ["base", "a1", "a2", "a3", "a4", "a5", "a6"]
@@ -228,24 +234,24 @@ def spline(pts, m=12):
     return np.array(out)
 
 
-def grid_mesh():
+def grid_mesh(xc=0.0):
     """The floor grating under the car where it stops: two fields beside the rail, bearing bars along the rail every
     33 mm, cross bars every 100 mm, in a frame."""
     out = []
     for sy in (-1, 1):
-        y0, y1 = 0.5 * sy, 1.3 * sy; ylo, yhi = min(y0, y1), max(y0, y1); x0, x1 = -3.2, 3.2
+        y0, y1 = 0.5 * sy, 1.3 * sy; ylo, yhi = min(y0, y1), max(y0, y1); x0, x1 = xc - 3.2, xc + 3.2
         for y in np.arange(ylo + 0.02, yhi - 0.01, 0.033):
-            out.append(box_mesh([0, y, 0.015], [x1 - x0, 0.004, 0.03]))
+            out.append(box_mesh([xc, y, 0.015], [x1 - x0, 0.004, 0.03]))
         for x in np.arange(x0 + 0.05, x1 - 0.02, 0.1):
             out.append(box_mesh([x, (ylo + yhi) / 2, 0.022], [0.006, yhi - ylo, 0.016]))
-        out += [box_mesh([0, ylo + 0.01, 0.016], [x1 - x0, 0.02, 0.032]), box_mesh([0, yhi - 0.01, 0.016], [x1 - x0, 0.02, 0.032]),
+        out += [box_mesh([xc, ylo + 0.01, 0.016], [x1 - x0, 0.02, 0.032]), box_mesh([xc, yhi - 0.01, 0.016], [x1 - x0, 0.02, 0.032]),
                 box_mesh([x0 + 0.01, (ylo + yhi) / 2, 0.016], [0.02, yhi - ylo, 0.032]), box_mesh([x1 - 0.01, (ylo + yhi) / 2, 0.016], [0.02, yhi - ylo, 0.032])]
     return cat(out)
 
 
-def cabinet_spot(bx, by):
-    """Where a robot's control cabinet stands: beside it, away from the rail and from the middle of the cell."""
-    return bx + math.copysign(1.25, bx), by + math.copysign(1.3, by)
+def cabinet_spot(bx, by, x0=0.0):
+    """Where a robot's control cabinet stands: beside it, away from the rail and from the middle of its cell (at x0)."""
+    return bx + math.copysign(1.25, bx - x0), by + math.copysign(1.3, by)
 
 
 def cabinet_meshes(cx, cy):
@@ -383,8 +389,76 @@ def without_cover(trimesh, m):
     return m
 
 
-def robot_parts(ctx, path, budget):
-    """{link: [(colour, vertices in the robot frame, faces), ...]} from the rigged GLB."""
+# ---- the spot welding gun (a C-gun on the flange), in the robot frame at zero angles
+GUN_K = np.array([2.24, 0.0, 1.784])                       # contact point (the TCP) at zero angles
+GUN_R0 = np.c_[[0, 0, -1.0], [0, -1.0, 0], [-1.0, 0, 0]]  # tool axes (columns) at zero angles
+GUN_OPEN = 0.07                                            # m: how far the moving electrode backs off to open
+GUN_THROAT = 0.25                                          # m: from the contact to the C's back
+GUN_MAT = {"body": ("#f26a0c", 0.0, 0.32, 0.6), "cast": ("#a9adb3", 0.55, 0.42), "copper": ("#c46a35", 0.9, 0.3),
+           "cylinder": ("#7d8288", 0.85, 0.3), "cap": ("#9b5a2c", 0.8, 0.35)}
+
+
+def _box(c, s):
+    c = np.array(c, float); h = np.array(s, float) / 2
+    v = np.array([[x, y, z] for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)], float) * h + c
+    f = [[0, 1, 3], [0, 3, 2], [4, 6, 7], [4, 7, 5], [0, 4, 5], [0, 5, 1], [2, 3, 7], [2, 7, 6], [0, 2, 6], [0, 6, 4], [1, 5, 7], [1, 7, 3]]
+    return v, np.array(f)
+
+
+def _cyl(p0, p1, r0, r1=None, n=16):
+    r1 = r0 if r1 is None else r1
+    p0 = np.asarray(p0, float); p1 = np.asarray(p1, float); a = p1 - p0; a = a / np.linalg.norm(a)
+    u = np.cross(a, [0, 0, 1] if abs(a[2]) < 0.9 else [1, 0, 0]); u /= np.linalg.norm(u); w = np.cross(a, u)
+    ang = np.linspace(0, 2 * math.pi, n, endpoint=False); ring = np.cos(ang)[:, None] * u + np.sin(ang)[:, None] * w
+    v = np.vstack([p0 + r0 * ring, p1 + r1 * ring, [p0, p1]]); f = []
+    for k in range(n):
+        k2 = (k + 1) % n
+        f += [[k, k2, n + k2], [k, n + k2, n + k], [2 * n, k2, k], [2 * n + 1, n + k, n + k2]]
+    return v, np.array(f)
+
+
+def _cat(parts):
+    v, f, n = [], [], 0
+    for pv, pf in parts:
+        v.append(np.asarray(pv, float)); f.append(np.asarray(pf, int) + n); n += len(pv)
+    return np.vstack(v), np.vstack(f)
+
+
+def gun_parts():
+    """The gun's parts as {"fixed": {material: (v, f)}, "moving": {material: (v, f)}} (robot frame, zero angles, the
+    gun closed). "moving" rides on the gun's own joint: it backs off by up to GUN_OPEN along -x."""
+    K = GUN_K; zb = K[2] + GUN_THROAT; xf = K[0] + 0.004; xm = K[0] - 0.004
+    fixed = {"body": [_box([1.915, 0, 1.97], [0.25, 0.22, 0.30])],                                  # transformer housing
+             "cast": [_box([1.80, 0, 1.97], [0.03, 0.26, 0.34]),                                     # mounting plate
+                      _box([2.32, 0, zb + 0.04], [0.20, 0.13, 0.11])],                               # the C's back (casting)
+             "cylinder": [_cyl([2.00, 0, zb + 0.14], [2.42, 0, zb + 0.14], 0.05, n=20),              # the air cylinder
+                          _cyl([2.42, 0, zb + 0.14], [2.45, 0, zb + 0.14], 0.035, n=16)],
+             "copper": [_cyl([K[0] + 0.09, 0, K[2]], [K[0] + 0.09, 0, zb], 0.024),                    # fixed arm
+                        _cyl([K[0] + 0.09, 0, K[2]], [xf + 0.02, 0, K[2]], 0.016)],                   # fixed electrode holder
+             "cap": [_cyl([xf + 0.02, 0, K[2]], [xf, 0, K[2]], 0.009, 0.005)]}                        # fixed cap
+    moving = {"copper": [_cyl([K[0] - 0.09, 0, K[2]], [K[0] - 0.09, 0, zb + 0.03], 0.024),           # moving arm
+                         _cyl([K[0] - 0.09, 0, K[2]], [xm - 0.02, 0, K[2]], 0.016)],
+              "cast": [_box([K[0] - 0.09, 0, zb + 0.06], [0.07, 0.11, 0.07])],                       # its slide under the cylinder
+              "cap": [_cyl([xm - 0.02, 0, K[2]], [xm, 0, K[2]], 0.009, 0.005)]}
+    return {"fixed": {k: _cat(v) for k, v in fixed.items()}, "moving": {k: _cat(v) for k, v in moving.items()}}
+
+
+def gun_points(spacing=0.008, open_=GUN_OPEN):
+    """Surface points of the whole gun (open), for collision checks."""
+    import trimesh
+    P = []
+    for grp, parts in gun_parts().items():
+        for mat, (v, f) in parts.items():
+            m = trimesh.Trimesh(v, f, process=False)
+            pts, _ = trimesh.sample.sample_surface(m, max(60, int(m.area / spacing ** 2)), seed=2)
+            if grp == "moving":
+                pts = pts - [open_, 0, 0]
+            P.append(pts)
+    return np.vstack(P)
+
+
+def robot_parts(ctx, path, budget, drop=()):
+    """{link: [(colour, vertices in the robot frame, faces), ...]} from the rigged GLB (without the nodes in drop)."""
     import trimesh
     sc = trimesh.load(path, force="scene"); g = sc.graph; par = g.transforms.parents
     groups = {}
@@ -396,7 +470,7 @@ def robot_parts(ctx, path, budget):
             n = par.get(n)
         if link is None:
             continue
-        if node in DROP_NODES:
+        if node in DROP_NODES or node in drop:
             continue
         T, gname = g[node]; m = sc.geometry[gname].copy(); m.apply_transform(T)
         if link == "a3":
@@ -428,6 +502,11 @@ def run(ctx):
     else:
         parts = {L: [((c, 0.1, 0.5), *box_mesh(o, s))] for L, (o, s, c) in BOXES.items()}
         ctx.log("[model] no kr210_weld.glb wired in: boxes stand in")
+    spots_on = which == "all four"                          # the whole line: the spot welding cell and a second car too
+    spot_parts = (robot_parts(ctx, rf[0].path, int(p.get("triangles", 40000)), SPOT_DROP) if rf else parts) if spots_on else {}
+    every = robots + (SPOT_ROBOTS if spots_on else [])
+    chains = ["car", "car2"] if spots_on else ["car"]
+    SPOTS = json.loads(SPOTS_JSON)
     if cf:
         import trimesh
         sc = trimesh.load(cf[0].path, force="scene"); Ry = trimesh.transformations.rotation_matrix(-math.pi / 2, [0, 1, 0]); ms = []
@@ -471,7 +550,7 @@ def run(ctx):
         if parent is None:
             state["o"] = np.asarray(origin_world, float)
         links.append(pack(mesh[0], mesh[1], mat) if mesh is not None else {})
-        if mesh is not None and role == "car:yaw":
+        if mesh is not None and role in ("car:yaw", "car2:yaw"):
             links[-1]["envmap"] = "cube"                   # metal: a view with a cube map shows the cell in it
         if mesh is not None and role.endswith(("lamps", "screens")):
             links[-1]["emissive"] = True; links[-1]["shadow"] = False
@@ -479,43 +558,47 @@ def run(ctx):
             links[-1]["fx"] = "arc"; links[-1]["emissive"] = True; links[-1]["shadow"] = False
     # the sled and the car
     O = [np.array([0.0, FAR, 0.0]), np.array([FAR, 0.0, 0.0]), np.zeros(3)]
-    joint(O[0], [0, 0, 1], "car:x", (sled[0] - O[0], sled[1]), SLED_MAT)
-    joint(O[1], [0, 0, 1], "car:y")
-    joint(O[2], [0, 0, 1], "car:yaw", (car[0] - O[2], car[1]), car_mat)      # satin silver
-    joint(O[2], [0, 0, 1], "car:-yaw"); joint(O[1], [0, 0, 1], "car:-y"); joint(O[0], [0, 0, 1], "car:-x")
-    for ri, (name, bx, by, bz, aim) in enumerate(robots):
+    for ch in chains:                                       # each car on its sled (two on the line: one in each cell)
+        joint(O[0], [0, 0, 1], ch + ":x", (sled[0] - O[0], sled[1]), SLED_MAT)
+        joint(O[1], [0, 0, 1], ch + ":y")
+        joint(O[2], [0, 0, 1], ch + ":yaw", (car[0] - O[2], car[1]), car_mat)      # satin silver
+        joint(O[2], [0, 0, 1], ch + ":-yaw"); joint(O[1], [0, 0, 1], ch + ":-y"); joint(O[0], [0, 0, 1], ch + ":-x")
+    for ri, (name, bx, by, bz, aim) in enumerate(every):
+        parts_r = spot_parts if name.startswith("spot ") else parts
         base = np.array([bx, by, bz]); yaw = math.atan2(-by, aim - bx)
         c, s = math.cos(yaw), math.sin(yaw); Rb = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
         # the heading: a turn about the vertical through the base (always the robot's yaw)
-        bparts = parts.get("base", [])
+        bparts = parts_r.get("base", [])
         first = bparts[0] if bparts else (("#2a2c30", 0.1, 0.5), *box_mesh([0, 0, 0.1], [0.6, 0.6, 0.2]))
         joint(base, [0, 0, 1], "%s:yaw" % name, (first[1], first[2]), first[0])
         for col, v, f in bparts[1:]:
             joint(base, [0, 0, 1], "fixed", (v, f), col)
         for i in range(6):
             o = base + Rb @ QP[i]
-            L = LINKS[i + 1]; lp = parts.get(L, [])
+            L = LINKS[i + 1]; lp = parts_r.get(L, [])
             if lp:
                 joint(o, W[i], "%s:A%d" % (name, i + 1), (lp[0][1] - QP[i], lp[0][2]), lp[0][0], Rb)
                 for col, v, f in lp[1:]:
                     joint(o, [1, 0, 0], "fixed", (v - QP[i], f), col, Rb)
             else:
                 joint(o, W[i], "%s:A%d" % (name, i + 1), None, None, Rb)
-        if ri < len(robots) - 1:                                                             # undo it for the next robot
+        if ri < len(every) - 1:                                                              # undo it for the next robot
             for i in reversed(range(6)):
                 joint(base + Rb @ QP[i], W[i], "%s:-A%d" % (name, i + 1), None, None, Rb)
             joint(base, [0, 0, 1], "%s:-yaw" % name, None, None, Rb)
     # the fixed cell: the rail and the robots' bases (fixed joints on the root: nothing moves them)
     rail, plates, rbolts = rail_mesh()
     static = [("static:rail", rail, RAIL_MAT), ("static:rail plates", plates, PLATE_MAT), ("static:rail bolts", rbolts, BOLT_MAT)]
-    for name, bx, by, bz, aim in robots:
+    for name, bx, by, bz, aim in every:
         blk, plate, bolts = base_mesh(bx, by, bz)
         static += [("static:%s base" % name, blk, BASE_MAT), ("static:%s plate" % name, plate, PLATE_MAT), ("static:%s bolts" % name, bolts, BOLT_MAT)]
     # the floor grating under the car, the yellow line around the cell, the control cabinets and their cables
-    static += [("static:grating", grid_mesh(), GRID_MAT), ("static:floor line", stripe_meshes(-3.7, 3.7, -4.4, 4.4), STRIPE_MAT)]
+    cells = [CELL_A_X] + ([CELL_B_X] if spots_on else [])
+    static += [("static:grating", cat([grid_mesh(x0) for x0 in cells]), GRID_MAT),
+               ("static:floor line", cat([stripe_meshes(x0 - 3.7, x0 + 3.7, -4.4, 4.4) for x0 in cells]), STRIPE_MAT)]
     cab = {k: [] for k in ("body", "door", "dark", "screen", "green", "amber", "metal", "cable")}
-    for name, bx, by, bz, aim in robots:
-        cx, cy = cabinet_spot(bx, by)
+    for name, bx, by, bz, aim in every:
+        cx, cy = cabinet_spot(bx, by, CELL_B_X if name.startswith("spot ") else CELL_A_X)
         body, door, dark, screen, green, amber, _ = cabinet_meshes(cx, cy)
         metal, cable = cable_meshes(bx, by, cx, cy)
         for k, m in zip(("body", "door", "dark", "screen", "green", "amber", "metal", "cable"), (body, door, dark, screen, green, amber, metal, cable)):
@@ -555,16 +638,39 @@ def run(ctx):
             for _ in range(6):
                 o[1:-1] = 0.25 * o[:-2] + 0.5 * o[1:-1] + 0.25 * o[2:]
             return P + o
-        for name, *_ in robots:
-            for sname, P, N in robot_seams(name):
-                P = pressed(P)
-                s_ = np.r_[0, np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))]
-                for a in range(0, len(P) - 1, SEG):
-                    b = min(len(P) - 1, a + SEG)
-                    v, f = bead_mesh(trimesh, P[a:b + 1], N[a:b + 1])
-                    jn = "bead:%s:%s:%d" % (name, sname.lower(), a // SEG)
-                    joint(np.zeros(3), [0, 0, 1], jn, (v + [0, 0, CAR_Z - HIDE], f), BEAD_MAT, parent="car:yaw", kind="prismatic")
-                    beads.append({"joint": jn, "robot": name, "seam": sname, "s0": round(float(s_[a]), 4), "s1": round(float(s_[b]), 4)})
+        for ci, ch in enumerate(chains):                      # (each car has its own: bead: on car, bead2: on car2)
+            for name, *_ in robots:
+                for sname, P, N in robot_seams(name):
+                    P = pressed(P)
+                    s_ = np.r_[0, np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))]
+                    for a in range(0, len(P) - 1, SEG):
+                        b = min(len(P) - 1, a + SEG)
+                        v, f = bead_mesh(trimesh, P[a:b + 1], N[a:b + 1])
+                        jn = "%s:%s:%s:%d" % ("bead" if ci == 0 else "bead2", name, sname.lower(), a // SEG)
+                        joint(np.zeros(3), [0, 0, 1], jn, (v + [0, 0, CAR_Z - HIDE], f), BEAD_MAT, parent=ch + ":yaw", kind="prismatic")
+                        beads.append({"joint": jn, "robot": name, "seam": sname, "s0": round(float(s_[a]), 4), "s1": round(float(s_[b]), 4), "chain": ci})
+    # the spot welds: a mark on both sides of the sheet at every spot, riding on each car (mark: on car, mark2: on car2),
+    # held under the floor like the beads until the gun has welded it
+    marks = []
+    if spots_on:
+        for ci, ch in enumerate(chains):
+            for name, *_ in SPOT_ROBOTS:
+                for k, s in enumerate(SPOTS.get(name, [])):
+                    pt = np.array(s[:3], float); n = np.array(s[3:6], float); n /= np.linalg.norm(n)
+                    v, f = cat([cyl_axis(pt + n * 0.0009, pt + n * 0.0016, 0.0058, 20), cyl_axis(pt - n * 0.0009, pt - n * 0.0016, 0.0058, 20)])
+                    jn = "%s:%s:%d" % ("mark" if ci == 0 else "mark2", name, k)
+                    joint(np.zeros(3), [0, 0, 1], jn, (v + [0, 0, CAR_Z - HIDE], f), MARK_MAT, parent=ch + ":yaw", kind="prismatic")
+                    marks.append({"joint": jn, "robot": name, "k": k, "chain": ci})
+    # the spot guns: the C-frame fixed on the flange (each material on its own fixed joint), the moving electrode on its
+    # own joint (gun:<robot>, metres open, backing off along the robot's -x at zero angles)
+    for name, *_ in (SPOT_ROBOTS if spots_on else []):
+        gp = gun_parts()
+        for k_, (mt, (v, f)) in enumerate(gp["fixed"].items()):
+            joint(np.zeros(3), [1, 0, 0], "static:%s gun %s" % (name, mt), (v - QP[5], f), GUN_MAT[mt], parent="%s:A6" % name, kind="fixed")
+        mv = list(gp["moving"].items())
+        joint(np.zeros(3), [-1, 0, 0], "gun:%s" % name, (mv[0][1][0] - QP[5], mv[0][1][1]), GUN_MAT[mv[0][0]], parent="%s:A6" % name, kind="prismatic")
+        for mt, (v, f) in mv[1:]:
+            joint(np.zeros(3), [1, 0, 0], "static:%s gun moving %s" % (name, mt), (v - QP[5], f), GUN_MAT[mt], parent="gun:%s" % name, kind="fixed")
     # the arc: a glow at each wire, held inside the wrist until the robot welds
     arcs = {}
     if cf:
@@ -575,8 +681,15 @@ def run(ctx):
             jn = "arc:%s" % name
             joint(np.zeros(3), (d / L).tolist(), jn, (np.asarray(sp.vertices), np.asarray(sp.faces)), ARC_MAT, parent="%s:A6" % name, kind="prismatic")
             arcs[name] = {"joint": jn, "on": round(L, 4)}
+        dg = GUN_K - QP[5]; Lg = float(np.linalg.norm(dg))                      # the spot guns' flash, at the electrodes
+        for name, *_ in (SPOT_ROBOTS if spots_on else []):
+            jn = "arc:%s" % name
+            joint(np.zeros(3), (dg / Lg).tolist(), jn, (np.asarray(sp.vertices) * 0.8, np.asarray(sp.faces)), ARC_MAT, parent="%s:A6" % name, kind="prismatic")
+            arcs[name] = {"joint": jn, "on": round(Lg, 4)}
     model = {"format": "esasim.robot/1", "robot": "Welding cell: %s KUKA KR 210 R2700 and the car frame" % ("four" if len(robots) == 4 else "one"),
              "units": "m", "scale": 1, "far": FAR, "robots": [r[0] for r in robots], "joints_layout": layout, "beads": beads, "arcs": arcs, "hide": HIDE,
+             "spot_robots": [r[0] for r in SPOT_ROBOTS] if spots_on else [], "marks": marks if spots_on else [], "chains": chains,
+             "cells": {"mig": CELL_A_X, "spot": CELL_B_X if spots_on else None}, "gun_open": GUN_OPEN,
              "hall": HALL, "joints": joints, "links": links}
     name = "welding_cell_%s.robot.json.gz" % ("all" if len(robots) == 4 else robots[0][0].replace(" ", "_"))
     with open(ctx.output("robot", name), "wb") as fh:
