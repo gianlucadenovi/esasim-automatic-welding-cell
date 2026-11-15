@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell model (ws-welding-robot-model) · version 13 · machine block, Python: def run(ctx)
+# Welding cell model (ws-welding-robot-model) · version 14 · machine block, Python: def run(ctx)
 # The welding cell for EsaSim's 3D view: the four KUKA KR 210 robots with their swan-neck torches and the car body frame on its sled, one model with each part in its own material.
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -256,7 +256,9 @@ def cabinet_spot(bx, by, x0=0.0):
 
 LASER_POLE = ("#c3c7cc", 0.85, 0.3)    # the light curtain's posts: anodised aluminium
 LASER_CAP = ("#f2c200", 0.0, 0.5)
-LASER_WIN = ("#15171a", 0.3, 0.15)     # the dark emitter/receiver windows
+LASER_WIN = ("#08090a", 0.2, 0.35)     # the round lenses (dark glass)
+LASER_RING = ("#c9cdd2", 1.0, 0.2)
+LASER_LABEL = ("#f2c200", 0.0, 0.45); LASER_INK = ("#111111", 0.0, 0.6)
 LASER_BEAM = ("#ff3b2f", 0.0, 1.0)     # the beams: a faint red line (drawn self-lit, no shadow)
 SIGN_MAT = {"white": ("#eeeeea", 0.0, 0.55), "yellow": ("#f2c200", 0.0, 0.5), "black": ("#141414", 0.0, 0.6), "red": ("#c81e1e", 0.0, 0.5)}
 DRESS_MAT = ("#141516", 0.05, 0.62)    # the robots' dress packs: black corrugated conduit
@@ -265,22 +267,42 @@ DRESS_R = 0.021
 
 def laser_barrier(xc):
     """The light curtains around a cell (just for show): on each side of the rail, four posts on a U round the robots
-    (open toward the rail), four faint beams between each pair. Returns posts, caps, windows, beams."""
-    posts, caps, wins, beams = [], [], [], []
+    (open toward the rail), four faint beams between each pair. A post: a 9 cm aluminium profile on a foot plate, a
+    yellow cap, a round lens (black, in a chrome ring) at each beam on the faces toward its neighbours, the yellow laser
+    warning label on its other faces. Returns {material: mesh} (the beams under "beams")."""
+    parts = {k: [] for k in ("post", "cap", "lens", "ring", "label", "ink", "beams")}
+    Z = (0.3, 0.6, 0.9, 1.2); HW = 0.045
     for sy in (-1, 1):
         P = [np.array([xc - 3.55, sy * 1.45]), np.array([xc - 3.55, sy * 4.2]), np.array([xc + 3.55, sy * 4.2]), np.array([xc + 3.55, sy * 1.45])]
         for k, p in enumerate(P):
-            posts += [box_mesh([p[0], p[1], 0.66], [0.05, 0.05, 1.3]), box_mesh([p[0], p[1], 0.006], [0.16, 0.16, 0.012])]
-            caps.append(box_mesh([p[0], p[1], 1.335], [0.062, 0.062, 0.07]))
-            for q in ([P[k - 1]] if k > 0 else []) + ([P[k + 1]] if k < 3 else []):
-                d = (q - p) / np.linalg.norm(q - p); c = p + d * 0.026
-                size = [0.004, 0.032, 1.08] if abs(d[0]) > 0.5 else [0.032, 0.004, 1.08]
-                wins.append(box_mesh([c[0], c[1], 0.76], size))
+            parts["post"] += [box_mesh([p[0], p[1], 0.7], [2 * HW, 2 * HW, 1.38]), box_mesh([p[0], p[1], 0.006], [0.2, 0.2, 0.012])]
+            parts["cap"].append(box_mesh([p[0], p[1], 1.41], [2 * HW + 0.01, 2 * HW + 0.01, 0.05]))
+            lit = [(q - p) / np.linalg.norm(q - p) for q in ([P[k - 1]] if k > 0 else []) + ([P[k + 1]] if k < 3 else [])]
+            for d in [np.array(v, float) for v in ((1, 0), (-1, 0), (0, 1), (0, -1))]:
+                f = p + d * HW; d3 = np.r_[d, 0.0]
+                if any(d @ l > 0.9 for l in lit):                                   # the lenses, toward the beams
+                    for z in Z:
+                        c = np.r_[f, z]
+                        parts["ring"].append(cyl_axis(c - d3 * 0.001, c + d3 * 0.004, 0.017, 20))
+                        parts["lens"].append(cyl_axis(c, c + d3 * 0.0055, 0.012, 20))
+                else:                                                               # the laser warning labels
+                    u = np.r_[-d[1], d[0], 0.0]; c = np.r_[f, 1.0] + d3 * 0.0008; s_ = 0.07; h = s_ * math.sqrt(3) / 2
+                    def tri(sz, off, mat):
+                        hh = sz * math.sqrt(3) / 2
+                        pts = [c + d3 * off + u * (-sz / 2) + [0, 0, -hh / 3], c + d3 * off + u * (sz / 2) + [0, 0, -hh / 3], c + d3 * off + [0, 0, 2 * hh / 3]]
+                        v = np.array(pts + [q_ + d3 * 0.001 for q_ in pts]); ff = [[0, 1, 2], [3, 4, 5], [0, 1, 4], [0, 4, 3], [1, 2, 5], [1, 5, 4], [2, 0, 3], [2, 3, 5]]
+                        parts[mat].append((v, np.array(ff + [t[::-1] for t in ff])))
+                    tri(s_, 0.0, "ink"); tri(s_ * 0.78, 0.0004, "label")
+                    parts["ink"].append(cyl_axis(c + d3 * 0.001, c + d3 * 0.0018, 0.006, 12))      # the laser's starburst
+                    for a in range(8):
+                        r_ = u * math.cos(a * math.pi / 4) + np.array([0, 0, 1.0]) * math.sin(a * math.pi / 4)
+                        parts["ink"].append(cyl_axis(c + d3 * 0.0012 + r_ * 0.008, c + d3 * 0.0012 + r_ * 0.016, 0.0012, 4))
+                    parts["ink"].append(box_mesh(c + d3 * 0.0012 + u * 0.012, [abs(u[0]) * 0.024 + 0.002, abs(u[1]) * 0.024 + 0.002, 0.0025]))
         for a_, b_ in zip(P[:-1], P[1:]):
             d = (b_ - a_) / np.linalg.norm(b_ - a_)
-            for z in (0.3, 0.6, 0.9, 1.2):
-                beams.append(cyl_axis([*(a_ + d * 0.03), z], [*(b_ - d * 0.03), z], 0.0016, 6))
-    return cat(posts), cat(caps), cat(wins), cat(beams)
+            for z in Z:
+                parts["beams"].append(cyl_axis([*(a_ + d * (HW + 0.006)), z], [*(b_ - d * (HW + 0.006)), z], 0.0016, 6))
+    return {k: cat(v) for k, v in parts.items() if v}
 
 
 def warning_sign(cx, cy):
@@ -950,8 +972,8 @@ def run(ctx):
                ("static:cabinet lamps", cat(cab["green"]), LAMP_GREEN), ("static:cabinet amber lamps", cat(cab["amber"]), LAMP_AMBER),
                ("static:connectors", cat(cab["metal"]), PLUG_MAT), ("static:cables", cat(cab["cable"]), CABLE_MAT)]
     lb = [laser_barrier(x0) for x0 in cells]                   # the light curtains round each cell
-    static += [("static:laser posts", cat([m[0] for m in lb]), LASER_POLE), ("static:laser caps", cat([m[1] for m in lb]), LASER_CAP),
-               ("static:laser windows", cat([m[2] for m in lb]), LASER_WIN), ("static:laser beams", cat([m[3] for m in lb]), LASER_BEAM)]
+    LM = {"post": LASER_POLE, "cap": LASER_CAP, "lens": LASER_WIN, "ring": LASER_RING, "label": LASER_LABEL, "ink": LASER_INK, "beams": LASER_BEAM}
+    static += [("static:laser %s" % (k if k == "beams" else k + "s"), cat([m[k] for m in lb]), LM[k]) for k in LM]
     signs = {}
     for name, bx, by, bz, aim in every:                        # a warning sign on the back of each control cabinet
         cx, cy = cabinet_spot(bx, by, CELL_B_X if name.startswith("spot ") else CELL_A_X)
