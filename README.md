@@ -52,7 +52,7 @@ An [EsaSim](https://esacode.com/) project of the workspace Gianluca De Novi's wo
 
 ### Workspace blocks it uses
 
-- [Welding cell](blocks/ws-welding-cell) · version 3
+- [Welding cell](blocks/ws-welding-cell) · version 4
 - [Welding cell 3D view](blocks/ws-welding-cell-3d-view) · version 2
 
 Keys pasted in blocks (secret settings) are not saved here. Datasets, results and the team stay in EsaSim.

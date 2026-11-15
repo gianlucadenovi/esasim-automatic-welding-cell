@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell (ws-welding-cell) · version 3 · machine block, Python: def run(ctx)
+# Welding cell (ws-welding-cell) · version 4 · machine block, Python: def run(ctx)
 # Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam; learn on the GPU (or the CPU), then run the line car af
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -18,6 +18,7 @@
 # Settings ctx.params["key"]
 #   mode        select    What to do = "Learn to follow the seams" of Learn to follow the seams | Run the production line
 #   accelerator select    Accelerator = "auto" of auto | NVIDIA GPU | CPU
+#   view_robot  select    3D view: robot shown live = "front right" of front right | front left | rear right | rear left
 #   minutes     number    Learning: minutes at most = 20
 #   target_mm   number    Learning: stop at (mm, 95 % of readings) = 0.3
 #   batch       number    Learning: profiles per step = 2048
@@ -66,6 +67,8 @@ learned network.
 3D: with the robot and car models wired to Models (kr210_weld.glb, s15_frame.glb), the block cuts the robot into its
 parts and draws the seams on the car, and writes a scene (esasim.scene/1) for EsaSim's 3D view: every robot part, the
 car and the sled posed car after car (the newest five cars), rewritten after each car. Without models, boxes stand in.
+While a run goes on, one robot (setting 3D view: robot shown live) streams its joints (channel joints) and the cell
+around it (channel scene) for EsaSim's 3D view, with the robot model from the Welding robot model block.
 Telemetry: cell (layout, frames, car summaries), sensor (laser profiles), event, train, line.
 Outputs: the tracker (seam_tracker_<date>_<p95>um.pt), the learning curve, a table of every weld and of every car, the scene.
 """
@@ -876,12 +879,69 @@ class SceneWriter:
             json.dump(sc, fh, separators=(",", ":"))
 
 
+# ===================================================================================================== live in EsaSim's 3D view
+VIEW_ROBOTS = ["front right", "front left", "rear right", "rear left"]
+
+
+class LiveRobot:
+    """What EsaSim's 3D view shows while a run goes on: one robot (the Welding robot model block makes its model) posed
+    by its joints on channel "joints", and the cell around it on channel "scene": the rails, the sled, the car's floor
+    and every seam of the car as small blocks (the shown robot's: blue to weld, orange welded; the others' grey),
+    a bright block at the wire while it welds."""
+    def __init__(self, robots, which):
+        self.R = robots; self.i = VIEW_ROBOTS.index(which) if which in VIEW_ROBOTS else 0
+        self.pts = []                                              # (robot, seam, car-frame points, s, length)
+        for i, r in enumerate(robots):
+            for k, sm in enumerate(r["seams"]):
+                idx = list(range(0, len(sm["P"]), 3)) + [len(sm["P"]) - 1]
+                self.pts.append((i, k, sm["P"][idx], sm["s"][idx], sm["length"]))
+        self.static = [dict(kind="box", center=[0, y, 0.07], size=[24, 0.12, 0.14], color="#9aa1aa") for y in (-0.55, 0.55)]
+        for i, r in enumerate(robots):
+            if i != self.i:
+                b = r["base"]; self.static.append(dict(kind="box", center=[float(b[0]), float(b[1]), float(b[2]) / 2], size=[0.9, 0.9, float(b[2])], color="#4a4f57"))
+        self.reset()
+
+    def reset(self):
+        self.done = set(); self.last_seam = -1
+
+    def joints(self, f):
+        q = f[7 + 6 * self.i: 13 + 6 * self.i]
+        d = {"j%d" % (k + 1): round(float(v), 2) for k, v in enumerate(q)}; d["j7"] = 0.0
+        return d
+
+    def scene(self, f, dx):
+        i = self.i; k_now, prog = f[35 + i], f[39 + i]
+        if k_now != self.last_seam:
+            if self.last_seam >= 0:
+                self.done.add(self.last_seam)
+            self.last_seam = k_now
+        Rc = rpy(f[6], f[5], f[4]); pc = np.array(f[1:4])
+        objs = list(self.static)
+        objs.append(dict(kind="box", center=[round(f[1] - dx, 3), 0, 0.44], size=[4.4, 1.25, 0.12], color="#2b2f36"))          # the sled
+        fl = pc + Rc @ np.array([0.0, 0.0, -0.53])
+        objs.append(dict(kind="box", center=np.round(fl, 3).tolist(), size=[4.3, 1.5, 0.03], color="#8d939b"))                  # the car's floor
+        for (r, k, P, s, L) in self.pts:
+            W_ = P @ Rc.T + pc
+            for p, si in zip(W_, s):
+                if r != i:
+                    col = "#b9bec6"
+                elif k in self.done or (k == k_now and si <= prog * L):
+                    col = "#ff8a2a"
+                else:
+                    col = "#3d8bff"
+                objs.append(dict(kind="box", center=np.round(p, 3).tolist(), size=[0.022, 0.022, 0.022], color=col))
+        if f[31 + i] == 3:                                                                                                     # the arc
+            r = self.R[i]; _, tcp, _ = fk(np.radians(f[7 + 6 * i: 13 + 6 * i])); tcp = r["Rb"] @ tcp + r["base"]
+            objs.append(dict(kind="box", center=np.round(tcp, 3).tolist(), size=[0.035, 0.035, 0.035], color="#fff4c2"))
+        return {"units": "m", "objects": objs}
+
+
 # ===================================================================================================== streaming
 class Streamer(threading.Thread):
     """Plays cars to the 3D view in real time: frames in half-second batches, sent a little ahead."""
-    def __init__(self, ctx, layout, speed=1.0):
+    def __init__(self, ctx, layout, speed=1.0, live=None):
         super().__init__(daemon=True)
-        self.ctx, self.layout, self.q, self.speed = ctx, layout, queue.Queue(maxsize=1), speed
+        self.ctx, self.layout, self.q, self.speed, self.live = ctx, layout, queue.Queue(maxsize=1), speed, live
         self.busy = False; self.stop = threading.Event(); self.played = 0; self.last_layout = 0
 
     def run(self):
@@ -902,22 +962,34 @@ class Streamer(threading.Thread):
             self.ctx.telemetry("cell", self.layout); self.last_layout = time.time()
 
     def play(self, run, label, on_done=None):
-        ctx = self.ctx; fr = run.frames; ev = list(run.events); se = list(run.sensor)
+        ctx = self.ctx; fr = run.frames; ev = list(run.events); se = list(run.sensor); lv = self.live
         self.maybe_layout(force=True)
+        if lv:
+            lv.reset()
+        dx = float(run.dp[0])
         w0 = time.time() + 1.0; per = int(0.5 / CarRun.DT)
-        for k in range(0, len(fr), per):
+        for k, f in enumerate(fr):
             if self.stop.is_set():
                 return
-            batch = fr[k:k + per]; t_hi = batch[-1][0]
-            ctx.telemetry("cell", dict(kind="frames", car=run.no, label=label, w0=w0, sent=time.time(), speed=self.speed, f=batch))
-            while ev and ev[0]["t"] <= t_hi:
+            if k % per == 0:
+                batch = fr[k:k + per]
+                ctx.telemetry("cell", dict(kind="frames", car=run.no, label=label, w0=w0, sent=time.time(), speed=self.speed, f=batch))
+                self.maybe_layout()
+            while ev and ev[0]["t"] <= f[0]:
                 e = ev.pop(0); ctx.telemetry("event", dict(text=e["text"], car=run.no))
-            while se and se[0]["t"] <= t_hi:
+            while se and se[0]["t"] <= f[0]:
                 ctx.telemetry("sensor", dict(se.pop(0), car=run.no))
-            wake = w0 + (t_hi - 0.5) / self.speed - 0.6
-            while time.time() < wake and not self.stop.is_set():
-                time.sleep(0.05)
-            self.maybe_layout()
+            if lv and k % 2 == 0:                                   # EsaSim's 3D view: the robot's joints at 10 Hz, the cell twice a second
+                wake = w0 + f[0] / self.speed
+                while time.time() < wake and not self.stop.is_set():
+                    time.sleep(0.01)
+                ctx.telemetry("joints", lv.joints(f))
+                if k % 5 == 0 or k == len(fr) - 1:
+                    ctx.telemetry("scene", lv.scene(f, dx))
+            elif not lv and k % per == per - 1:
+                wake = w0 + (f[0] - 0.5) / self.speed - 0.6
+                while time.time() < wake and not self.stop.is_set():
+                    time.sleep(0.05)
         while time.time() < w0 + fr[-1][0] / self.speed and not self.stop.is_set():
             time.sleep(0.1)
         if on_done:
@@ -944,7 +1016,7 @@ def learn(ctx, p, robots, layout, scene):
     VB = 8192
     vt, vu, vh = sample_joints(torch, VB, vgen, dev); vd, vv = make_profiles(torch, VB, vt, vu, vh, vgen, dev)
     curve = []; t0 = time.time(); step = 0; last_eval = 0; last_replay = -1e9; best = None
-    streamer = Streamer(ctx, layout); streamer.start()
+    streamer = Streamer(ctx, layout, live=LiveRobot(robots, str(p.get("view_robot") or "front right"))); streamer.start()
     replay_every = float(p.get("replay_every", 120))
     rng = np.random.default_rng(int(p.get("seed", 1)))
     opts = car_opts(p)
@@ -1062,7 +1134,7 @@ def produce(ctx, p, robots, layout, scene):
         ctx.telemetry("event", dict(text="Seam camera off: welding the taught programme only"))
     n_cars = int(p.get("cars", 0)); max_min = float(p.get("max_minutes", 30))
     rng = np.random.default_rng(int(p.get("seed", 1))); opts = car_opts(p)
-    streamer = Streamer(ctx, layout); streamer.start()
+    streamer = Streamer(ctx, layout, live=LiveRobot(robots, str(p.get("view_robot") or "front right"))); streamer.start()
     welds_f = open(ctx.output("welds", "welds.csv"), "w", newline=""); cars_f = open(ctx.output("cars", "cars.csv"), "w", newline="")
     ww = cw = None; stats = dict(cars=0, seams=0, ok=0, worst=0.0, cycle=[])
     t0 = time.time(); ahead = queue.Queue(maxsize=1)
