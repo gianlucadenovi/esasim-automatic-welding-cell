@@ -1,30 +1,38 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding robot model (ws-welding-robot-model) · version 1 · machine block, Python: def run(ctx)
-# One of the welding cell's four KUKA KR 210 robots, with its swan-neck torch, as a robot model for EsaSim's 3D view, placed where it stands in the cell.
+# Welding robot model (ws-welding-robot-model) · version 2 · machine block, Python: def run(ctx)
+# One of the welding cell's four KUKA KR 210 robots with its swan-neck torch, and the car body frame on its sled, as one model for EsaSim's 3D view, placed where they are in the cell.
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
 #
 # Inputs   ctx.inputs["id"] is a list of files: .path .name .size .read_text() .read_json()
-#   models      Files (glb)               Models · several · optional · The welding-cell-models dataset (kr210_weld.glb is used); without it, boxes stand in
+#   models      Files (glb)               Models · several · optional · The welding-cell-models dataset: kr210_weld.glb (the robot) and s15_frame.glb (the car frame); without them, boxes stand in
 # Outputs  ctx.output("id", "name.ext") is the path to write; ctx.write_json / ctx.write_text
 #   robot       Files (gz)                Robot model · kr210_<robot>.robot.json.gz (esasim.robot/1): wire it to a 3D view, with the Welding cell block's telemetry (channels joints, scene)
 #   telemetry   Live telemetry            ctx.telemetry("channel", data) while it runs
 # Settings ctx.params["key"]
 #   robot       select    Robot = "front right" of front right | front left | rear right | rear left
-#   triangles   number    Triangles at most = 40000
+#   triangles   number    Robot: triangles at most = 40000
+#   car_triangles number    Car frame: triangles at most = 40000
 # Runs on  Any machine. Return a dict to fill the "result" output.
-# Packages numpy, trimesh (installed by the worker with pip when missing)
+# Packages numpy, trimesh, fast-simplification (installed by the worker with pip when missing)
 # EsaSim rewrites these lines from the block's definition each time it is saved: change the definition, not them.
 # ── end of EsaSim block header ────────────────────────────────────────
 
-"""Welding robot model: one of the welding cell's four KUKA KR 210 R2700 robots as an esasim.robot/1 model for EsaSim's
-3D view, placed where it stands in the cell (world frame: x along the rail, y left, z up, metres).
+"""Welding robot model: one of the welding cell's four KUKA KR 210 R2700 robots, with the car body frame on its sled, as
+an esasim.robot/1 model for EsaSim's 3D view, placed where they are in the cell (world frame: x along the rail, y left,
+z up, metres).
+
+EsaSim's 3D view moves one chain of up to 12 joints. The first six carry the sled and the car: a turn about an axis
+1 km away is, over a few metres, a straight move (5 cm off at the ends of the rail, nothing in the cell), so joint 1
+slides the sled and the car along the rail, joint 2 moves the car across it, joint 3 turns it (yaw); joints 4 to 6 undo
+these three, so that the robot (joints 7 to 12) stands still on the floor. The Welding cell block sends all twelve
+angles on its joints channel.
 
 From kr210_weld.glb (the rigged robot with its swan-neck MIG torch, wire feeder and seam camera) the robot is cut into
 its links (base, A1 to A6) and the torch, each in its joint's frame, simplified to keep the file small. The base also
-carries the robot's pedestal. Without the GLB, boxes stand in. The 3D view poses the model live from the Welding cell
-block's joints channel (j1..j6 in degrees, j7 = 0: the torch) and draws the car, the sled and the seams from its scene
-channel. Finishes in seconds, so the view has the model while the welding cell runs beside it.
+carries the robot's pedestal. The car frame is s15_frame.glb (any other .glb of the dataset). Without the GLBs, boxes
+stand in. The seams come on the Welding cell block's scene channel. Finishes in seconds, so the view has the model
+while the welding cell runs beside it.
 """
 import gzip
 import json
@@ -39,7 +47,9 @@ W = np.array([[0, 0, 1], [0, -1, 0], [0, -1, 0], [1, 0, 0], [0, -1, 0], [1, 0, 0
 QP = np.array([[0, 0, 0], [0.349, 0, 0.678], [0.349, 0, 1.825], [0.70, 0, 1.784], [1.575, 0, 1.784], [1.79, 0, 1.784]])
 LINKS = ["base", "a1", "a2", "a3", "a4", "a5", "a6"]
 TORCH = re.compile(r"torch|camera|wire_feeder|hose", re.I)
-COLORS = {"base": "#2a2c30", "a1": "#f26a0c", "a2": "#f26a0c", "a3": "#f26a0c", "a4": "#f26a0c", "a5": "#f26a0c", "a6": "#2f3238", "torch": "#26292e"}
+FAR = 1000.0                                       # m: the axis of the "straight" moves (vertex positions stay well within float precision)
+CAR_Z = 1.05
+COLORS = {"car": "#c3c8cf", "sled": "#2b2f36", "base": "#2a2c30", "a1": "#f26a0c", "a2": "#f26a0c", "a3": "#f26a0c", "a4": "#f26a0c", "a5": "#f26a0c", "a6": "#2f3238"}
 # stand-in boxes, robot frame (x forward, z up): centre, size
 BOXES = {"base": ([0, 0.06, 0.17], [1.0, 1.1, 0.4]), "a1": ([0.02, 0.0, 0.55], [1.09, 0.52, 0.68]), "a2": ([0.35, -0.21, 1.23], [0.53, 0.44, 1.5]),
          "a3": ([0.63, 0.03, 1.9], [1.44, 0.69, 0.65]), "a4": ([1.18, -0.01, 1.82], [0.92, 0.22, 0.27]), "a5": ([1.6, 0.02, 1.78], [0.34, 0.33, 0.24]),
@@ -110,26 +120,50 @@ def run(ctx):
         v, f = parts["base"]; parts["base"] = (np.vstack([v, pv]), np.vstack([f, pf + len(v)]))
     else:
         parts["base"] = (pv, pf)
-    # esasim.robot/1: link 0 is the base (in the world frame: the robot stands at its place in the cell); joint i turns
-    # link i+1 about its axis, its origin given in the frame of the joint before
+    # the car frame (front from the GLB's -Z to +X, as in the cell) and the sled
+    cars = [f for f in (ctx.inputs.get("models") or []) if f.name.lower().endswith(".glb") and f not in files]
+    if cars:
+        import trimesh
+        sc = trimesh.load(cars[0].path, force="scene"); Ry = trimesh.transformations.rotation_matrix(-math.pi / 2, [0, 1, 0]); ms = []
+        for node in sc.graph.nodes_geometry:
+            T, gname = sc.graph[node]; m = sc.geometry[gname].copy(); m.apply_transform(Ry @ T); ms.append(m)
+        m = simplify(trimesh, trimesh.util.concatenate(ms), int(p.get("car_triangles", 40000)))
+        C = np.array([[1, 0, 0], [0, 0, 1], [0, -1, 0]])
+        car = (np.asarray(m.vertices) @ C + [0, 0, CAR_Z], np.asarray(m.faces))
+        ctx.log("[model] car frame from %s: %d triangles" % (cars[0].name, len(car[1])))
+    else:
+        car = box_mesh([-0.05, 0, CAR_Z + 0.1], [4.85, 1.9, 1.3])
+    sled = box_mesh([0, 0, 0.44], [4.4, 1.25, 0.12])
+    # esasim.robot/1: link 0 is the robot's base (world frame); joint i turns link i+1 about its axis, its origin given
+    # in the frame of the joint before. Joints 1-6: the sled and the car (see above), then the robot.
     c, s = math.cos(yaw), math.sin(yaw); Rb = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]]); base = np.array([bx, by, bz])
     def pack(v, f, color):
         return {"v": np.round(np.asarray(v, float).ravel(), 4).tolist(), "f": np.asarray(f, int).ravel().tolist(), "color": color}
     links = [pack(parts["base"][0] @ Rb.T + base, parts["base"][1], COLORS["base"])]
     joints = []
+    O = [np.array([0.0, FAR, 0.0]), np.array([FAR, 0.0, 0.0]), np.zeros(3), np.zeros(3), np.array([FAR, 0.0, 0.0]), np.array([0.0, FAR, 0.0])]
+    names = ["along the rail", "across", "car turned", "(undo)", "(undo)", "(undo)"]
+    prev = np.zeros(3)
+    for k in range(6):
+        joints.append({"name": names[k], "xyz": (O[k] - prev).tolist(), "rpy": [0, 0, 0], "axis": [0, 0, 1]})
+        if k == 0:
+            links.append(pack(sled[0] - O[k], sled[1], COLORS["sled"]))
+        elif k == 2:
+            links.append(pack(car[0] - O[k], car[1], COLORS["car"]))
+        else:
+            links.append({})                                              # nothing rides on these joints
+        prev = O[k]
     for i in range(6):
-        org = (base + Rb @ QP[0]) if i == 0 else (QP[i] - QP[i - 1])
+        org = (base + Rb @ QP[0] - prev) if i == 0 else (QP[i] - QP[i - 1])
         joints.append({"name": "A%d" % (i + 1), "xyz": np.round(org, 5).tolist(), "rpy": [0, 0, round(yaw, 6)] if i == 0 else [0, 0, 0],
                        "axis": W[i].tolist()})
         L = LINKS[i + 1]; v, f = parts.get(L, box_mesh(*BOXES[L]))
+        if L == "a6":                                                   # the torch rides on A6
+            tv, tf = parts.get("torch", box_mesh(*BOXES["torch"])); v, f = np.vstack([v, tv]), np.vstack([f, tf + len(v)])
         links.append(pack(v - QP[i], f, COLORS[L]))
-    # the torch: on a fixed joint at the flange (j7 always 0)
-    joints.append({"name": "torch", "xyz": [0, 0, 0], "rpy": [0, 0, 0], "axis": [1, 0, 0]})
-    v, f = parts.get("torch", box_mesh(*BOXES["torch"]))
-    links.append(pack(v - QP[5], f, COLORS["torch"]))
-    model = {"format": "esasim.robot/1", "robot": "KUKA KR 210 R2700 · %s (welding cell)" % which, "units": "m", "scale": 1,
-             "joints": joints, "links": links}
+    model = {"format": "esasim.robot/1", "robot": "KUKA KR 210 R2700 · %s, and the car frame" % which, "units": "m", "scale": 1,
+             "far": FAR, "joints": joints, "links": links}
     name = "kr210_%s.robot.json.gz" % which.replace(" ", "_")
     with open(ctx.output("robot", name), "wb") as fh:
         fh.write(gzip.compress(json.dumps(model, separators=(",", ":")).encode(), 6))
-    return {"robot": which, "file": name, "triangles": sum(len(l["f"]) // 3 for l in links)}
+    return {"robot": which, "file": name, "triangles": sum(len(l.get("f", [])) // 3 for l in links)}
