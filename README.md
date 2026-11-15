@@ -67,7 +67,7 @@ The files the project's views draw with (3D models, textures, sounds), in [asset
 
 Kept with the project (listed in [esasim-files.json](esasim-files.json)), so it runs without making them again:
 
-- **weld-tracker** · 3 files, 5.3 MB · made by 1 · Learn to follow the seams: Welding cell: learn to follow the seams · in [files/weld-tracker.zip](files/weld-tracker.zip)
+- **weld-tracker** · 4 files, 7.6 MB · made by 1 · Learn to follow the seams: Welding cell: learn to follow the seams · in [files/weld-tracker.zip](files/weld-tracker.zip)
 
 The data the blueprints read (welding-cell-models) stays in EsaSim.
 
