@@ -632,7 +632,7 @@ var g = new THREE.BufferGeometry(), pos = new Float32Array(l.v.length);
 for (var n = 0; n < l.v.length; n++) pos[n] = l.v[n] * k;
 g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setIndex(l.f); g.computeVertexNormals();
 var m = new THREE.Mesh(g, mat(i, l)); m.castShadow = !ghost && !l.emissive && l.shadow !== false; m.receiveShadow = !ghost; holder.add(m);
-var fx_ = l.fx || (J[i - 1] && /^bead:/i.test(J[i - 1].name || '') ? 'bead' : null);
+var fx_ = l.fx || (J[i - 1] && /^(bead\d*|mark\d*):/i.test(J[i - 1].name || '') ? 'bead' : null);
 if (!ghost && fx_) { m.userData.fx = fx_; fxMeshes.push(m); if (fx_ === 'bead') m.castShadow = false; }
 if (!ghost && l.envmap === 'cube') cubeMeshes.push(m);
 }
@@ -920,7 +920,7 @@ scene.add(K.cam);
 }
 meshes.forEach(function (m) { if (m.material.envMap !== K.rt.texture) { m.material.envMap = K.rt.texture; m.material.envMapIntensity = 1.0; m.material.needsUpdate = true; } });
 if (K.face === 0) {
-K.box.makeEmpty(); meshes.forEach(function (m) { K.box.expandByObject(m); });
+K.box.makeEmpty(); var nd_ = 1e9; meshes.forEach(function (m) { var b_ = new THREE.Box3().setFromObject(m), d_ = b_.getCenter(RFXV).distanceTo(camera.position); if (d_ < nd_) { nd_ = d_; K.box.copy(b_); } });   // (two cars on the line: the one nearer the camera)
 K.box.getCenter(K.cam.position); K.cam.updateMatrixWorld(true);
 if (K.cam.coordinateSystem !== renderer.coordinateSystem) { K.cam.coordinateSystem = renderer.coordinateSystem; K.cam.updateCoordinateSystem(); }
 }
@@ -1134,13 +1134,17 @@ return other != null ? ROBOT.feed[other] : null;
 // they go there at once instead of sliding the whole rail
 function rfxCarJumps(r, qa, qb) {
 var ud = r.userData; if (ud.carJ === undefined) {
-ud.carJ = null; var nm = ud.names || {}, far = +(ud.far || 0);
-var ix = nm['car:x']; if (ix != null) { ud.carJ = { x: ix, far: far || 1000, all: Object.keys(nm).filter(function (k) { return /^car:/.test(k); }).map(function (k) { return nm[k]; }) }; }
+ud.carJ = []; var nm = ud.names || {}, far = +(ud.far || 0) || 1000;
+Object.keys(nm).forEach(function (k) { var m = /^(car\d*):x$/.exec(k); if (!m) return;
+var re = new RegExp('^' + m[1] + ':'); ud.carJ.push({ x: nm[k], far: far, all: Object.keys(nm).filter(function (kk) { return re.test(kk); }).map(function (kk) { return nm[kk]; }) }); });
 }
-var C = ud.carJ; if (!C || qa[C.x] == null || qb[C.x] == null) return null;
-var dv = Math.abs(qb[C.x] - qa[C.x]) * (ud.rad ? 1 : Math.PI / 180) * C.far;
-if (dv < 1.5) return null;
-var m = {}; C.all.forEach(function (i) { m[i] = true; }); return m;
+var out = null;
+ud.carJ.forEach(function (C) {
+if (qa[C.x] == null || qb[C.x] == null) return;
+if (Math.abs(qb[C.x] - qa[C.x]) * (ud.rad ? 1 : Math.PI / 180) * C.far < 1.5) return;
+out = out || {}; C.all.forEach(function (i) { out[i] = true; });
+});
+return out;
 }
 function sampleAt(L, t, r) {
 if (!L.length) return null;
