@@ -820,14 +820,18 @@ M.servos.push({ j: ud.joints[idx], q: ud.joints[idx].quaternion.clone(), w: 0, f
 }
 var M = RFX.mot;
 // the sled: the speed of the car's middle
-var car = ud.cube && ud.cube[0];
+var cars = ud.cube || [], car = cars[0];
 if (car) {
-if (!car.geometry.boundingSphere) car.geometry.computeBoundingSphere();
-car.localToWorld(RFXV2.copy(car.geometry.boundingSphere.center));
-var v = M.carPrev ? RFXV2.distanceTo(M.carPrev) / dt : 0;
-if (!M.carPrev) M.carPrev = new THREE.Vector3();
-M.carPrev.copy(RFXV2);
-if (v > 6) v = 0;                                                     // a new car put back at the start: not a move
+M.carPrevs = M.carPrevs || []; var v = 0, vp = new THREE.Vector3();          // the fastest of the sleds (they move together)
+cars.forEach(function (cm, ci) {
+if (!cm.geometry.boundingSphere) cm.geometry.computeBoundingSphere();
+cm.localToWorld(vp.copy(cm.geometry.boundingSphere.center));
+var vi = M.carPrevs[ci] ? vp.distanceTo(M.carPrevs[ci]) / dt : 0; if (!M.carPrevs[ci]) M.carPrevs[ci] = new THREE.Vector3();
+M.carPrevs[ci].copy(vp);
+if (vi > 6) vi = 0;                                                   // a car put round to the start: not a move
+if (vi > v) { v = vi; RFXV2.copy(vp); }
+});
+if (v === 0) car.localToWorld(RFXV2.copy(car.geometry.boundingSphere.center));
 M.carV += (v - M.carV) * Math.min(1, dt * 5);
 var lv = Math.min(1, M.carV / 0.5), d = camera.position.distanceTo(RFXV2), near = 1 / (1 + d * d / 40), R = M.rail;
 R.g.gain.setTargetAtTime(on ? 0.07 * lv * near : 0, now, 0.08);
@@ -836,28 +840,45 @@ R.o2.frequency.setTargetAtTime(520 + 1100 * lv, now, 0.1);
 R.g2.gain.setTargetAtTime(on ? 0.006 * lv * near : 0, now, 0.08);
 R.g3.gain.setTargetAtTime(on ? 0.09 * lv * near : 0, now, 0.08);
 }
-// the doors: a roll-up door's motor hum and the rattle of its slats and chain while it moves, a clunk when it stops
+// the doors: a roll-up door's gear motor (a soft low hum with a faint gear whine), the curtain rolling on its drum (a
+// low rumble that swells gently), the chain ticking over its sprocket; a contactor click when it starts, a muffled
+// thud and a short rattle of the slats when it stops. Quiet, and fading with the camera's distance.
 if (!M.doors) {
 M.doors = [];
 ['door:in', 'door:out'].forEach(function (dn) {
 var ix = (ud.names || {})[dn]; if (ix == null || !ud.joints[ix]) return;
 var g = A.createGain(); g.gain.value = 0; g.connect(AUD.nodes.master);
-var mo = A.createOscillator(); mo.type = 'sawtooth'; mo.frequency.value = 62; var ml = A.createBiquadFilter(); ml.type = 'lowpass'; ml.frequency.value = 260; var mg = A.createGain(); mg.gain.value = 0.55; mo.connect(ml); ml.connect(mg); mg.connect(g); mo.start();
-var rs = A.createBufferSource(); rs.buffer = AUD.nodes.white; rs.loop = true; var rb = A.createBiquadFilter(); rb.type = 'bandpass'; rb.frequency.value = 1100; rb.Q.value = 1.6;
-var rg = A.createGain(); rg.gain.value = 0.35; var lfo = A.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 17; var lg = A.createGain(); lg.gain.value = 0.3; lfo.connect(lg); lg.connect(rg.gain); lfo.start();
-rs.connect(rb); rb.connect(rg); rg.connect(g); rs.start();
-M.doors.push({ j: ud.joints[ix], prev: null, v: 0, moving: false, g: g, lfo: lfo });
+var h1 = A.createOscillator(); h1.type = 'sine'; h1.frequency.value = 50;
+var h2 = A.createOscillator(); h2.type = 'triangle'; h2.frequency.value = 100;
+var hl = A.createBiquadFilter(); hl.type = 'lowpass'; hl.frequency.value = 170; hl.Q.value = 0.5;
+var hg = A.createGain(); hg.gain.value = 0.32; h1.connect(hl); h2.connect(hl); hl.connect(hg); hg.connect(g); h1.start(); h2.start();
+var wh = A.createOscillator(); wh.type = 'sine'; wh.frequency.value = 230; var wg = A.createGain(); wg.gain.value = 0.025; wh.connect(wg); wg.connect(g); wh.start();
+var rs = A.createBufferSource(); rs.buffer = AUD.nodes.brown; rs.loop = true;
+var rl = A.createBiquadFilter(); rl.type = 'lowpass'; rl.frequency.value = 340; rl.Q.value = 0.4;
+var rg = A.createGain(); rg.gain.value = 0.5; var lfo = A.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 3.2;
+var lg = A.createGain(); lg.gain.value = 0.14; lfo.connect(lg); lg.connect(rg.gain); lfo.start();
+rs.connect(rl); rl.connect(rg); rg.connect(g); rs.start();
+M.doors.push({ j: ud.joints[ix], prev: null, v: 0, moving: false, g: g, lfo: lfo, wh: wh, tick: 0 });
 });
 }
 M.doors.forEach(function (D) {
 var h = D.j.position.length(), v = D.prev == null ? 0 : Math.abs(h - D.prev) / dt; D.prev = h;
 if (v > 5) v = 0;                                                     // a jump, not a move
 D.v += (v - D.v) * Math.min(1, dt * 6);
-var mv = D.v > 0.05; D.j.getWorldPosition(RFXV3);
+var mv = D.v > 0.05, lv = Math.min(1, D.v / 0.75); D.j.getWorldPosition(RFXV3);
 var d = camera.position.distanceTo(RFXV3), near = 1 / (1 + d * d / 120);
-D.g.gain.setTargetAtTime(on && mv ? 0.22 * near : 0, now, 0.08);
-D.lfo.frequency.setTargetAtTime(12 + 14 * Math.min(1, D.v / 0.75), now, 0.1);
-if (D.moving && !mv && on) { audBurst({ f: 180, type: 'lowpass', a: 0.002, d: 0.28, g: 0.9 * near, brown: true }); audBurst({ f: 900, type: 'bandpass', Q: 1, a: 0.001, d: 0.09, g: 0.4 * near }); }
+D.g.gain.setTargetAtTime(on && mv ? 0.1 * near : 0, now, mv ? 0.25 : 0.12);
+D.lfo.frequency.setTargetAtTime(2.4 + 1.6 * lv, now, 0.2);
+D.wh.frequency.setTargetAtTime(180 + 70 * lv, now, 0.2);
+if (on && mv) {                                                       // the chain over the sprocket
+D.tick += dt * (7 + 5 * lv);
+while (D.tick >= 1) { D.tick -= 1; audBurst({ f: 1800 + Math.random() * 900, type: 'bandpass', Q: 2.5, a: 0.0006, d: 0.012, g: (0.05 + 0.04 * Math.random()) * near, at: Math.random() * dt }); }
+}
+if (!D.moving && mv && on) audBurst({ f: 1300, type: 'bandpass', Q: 1.2, a: 0.0008, d: 0.03, g: 0.18 * near });
+if (D.moving && !mv && on) {
+audBurst({ f: 110, type: 'lowpass', a: 0.004, d: 0.32, g: 0.45 * near, brown: true });
+for (var k = 0; k < 5; k++) audBurst({ f: 500 + Math.random() * 500, type: 'bandpass', Q: 1.4, a: 0.001, d: 0.025, g: 0.08 * near * (1 - k / 6), at: 0.03 + k * 0.035 + Math.random() * 0.02 });
+}
 D.moving = mv;
 });
 // the servos: each axis's turning speed
