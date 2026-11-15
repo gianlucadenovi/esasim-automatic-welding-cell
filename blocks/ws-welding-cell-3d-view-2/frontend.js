@@ -1,13 +1,37 @@
 // ── EsaSim block ──────────────────────────────────────────────────────
-// Welding cell 3D view (ws-welding-cell-3d-view-2) · version 2 · view, JavaScript: function render(ctx)
-// The 3D view with the welding cell's hall, polished floor, cube-mapped car, glossy paint and welding sparks, smoke and arc light.
+// Welding cell 3D view (ws-welding-cell-3d-view-2) · version 3 · view, JavaScript: function render(ctx)
+// The 3D view with the welding cell's hall, polished floor, cube-mapped car, glossy paint, glowing weld beads, welding sparks, smoke, arc light and crackle.
 // Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 // Saved: 2026-11-15
 //
 // Inputs   ctx.input("id") gives { files, stream }; ctx.rows("id"), ctx.json("id"), ctx.text("id")
-//   scene       Anything (json, gz, glb, gltf, obj, stl, ply) Scene or 3D files · several · A scene (esasim.scene/1 JSON), 3D models, a robot model (.robot.json.gz) and/or live telemetry
+//   scene       Anything (json, gz, glb, gltf, obj, stl, ply) Scene or 3D files · several · A scene (esasim.scene/1 JSON), 3D models or a robot model (.robot.json.gz)
+//   live        Stream                    Live · several · optional · Live telemetry: the robots' joints, the scene, events and numbers
 // Settings ctx.params.key
-//   (none)
+//   environment select    Environment = "outdoor" of outdoor | studio | night
+//   quality     select    Quality = "high" of high | balanced | fast
+//   floor       bool      Show the floor = true
+//   models      select    Models = "side by side" of side by side | one at a time
+//   textures    bool      Tissue textures = true
+//   metaballs   bool      Show the metaballs = false
+//   grid        bool      Show the grid = true
+//   trails      bool      Show trajectories = true
+//   speed       number    Playback speed = 1
+//   model_for   text      Model for = ""
+//   live_channel text      Live channel = ""
+//   joints_channel text      Robot: joints channel = "joints"
+//   ghost_channel text      Robot: twin channel = "twin"
+//   scene_channel text      Robot: objects channel = "scene"
+//   delay       number    Robot: behind real time (seconds) = 1.2
+//   mouse_speed number    3D mouse speed = 1
+//   mouse_mode  select    3D mouse moves = "The camera" of The camera | Move the scene | The model
+//   numbers     text      Numbers = ""
+//   events_channel text      Events channel = "event"
+//   controls    textarea  Controls = ""
+//   control_channel text      Controls: channel = "control"
+//   routes      bool      Fleets: show the routes = true
+//   heat        bool      Fleets: show the heat map = false
+//   camera      select    Camera = "free" of free | onboard: interstage | onboard: engines | onboard: grid fin | second stage
 // EsaSim rewrites these lines from the block's definition each time it is saved: change the definition, not them.
 // ── end of EsaSim block header ────────────────────────────────────────
 

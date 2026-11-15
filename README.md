@@ -54,7 +54,7 @@ An [EsaSim](https://esacode.com/) project of the workspace Gianluca De Novi's wo
 
 - [Welding cell model](blocks/ws-welding-robot-model) · version 8
 - [Welding cell](blocks/ws-welding-cell) · version 9
-- [Welding cell 3D view](blocks/ws-welding-cell-3d-view-2) · version 2
+- [Welding cell 3D view](blocks/ws-welding-cell-3d-view-2) · version 3
 
 ### Assets
 
