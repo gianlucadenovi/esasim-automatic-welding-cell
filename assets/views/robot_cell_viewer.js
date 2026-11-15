@@ -728,9 +728,10 @@ S.mesh.geometry.attributes.position.needsUpdate = true; S.mesh.geometry.attribut
 function rfxSmoke() {
 if (RFX.smoke) return RFX.smoke;
 RFX.smokeTex = RFX.smokeTex || rfxTex('rgba(255,255,255,0.9)', 'rgba(235,238,242,0.35)', 0.45);
+if (!RFX.smokeAsk) { RFX.smokeAsk = true; fromProject(['smoke_puff.jpg'], 'url', function (u) { new THREE.TextureLoader().load(u, function (tx) { RFX.smokeImg = tx; if (RFX.smoke) RFX.smoke.list.forEach(function (p) { p.s.material.map = tx; p.s.material.alphaMap = tx; p.s.material.needsUpdate = true; }); }); }, function () { }); }
 var list = [];
 for (var k = 0; k < (quality === 'fast' ? 60 : 160); k++) {
-var s = new THREE.Sprite(new THREE.SpriteMaterial({ map: RFX.smokeTex, color: 0xe9edf1, transparent: true, opacity: 0, depthWrite: false }));
+var s = new THREE.Sprite(new THREE.SpriteMaterial({ map: RFX.smokeImg || RFX.smokeTex, alphaMap: RFX.smokeImg || null, color: 0xf2f4f6, transparent: true, opacity: 0, depthWrite: false }));
 s.visible = false; s.renderOrder = 4; scene.add(s); list.push({ s: s, age: 0, life: 0, v: new THREE.Vector3(), spin: 0 });
 }
 RFX.smoke = { list: list, next: 0 }; return RFX.smoke;
@@ -747,7 +748,7 @@ p.age += dt; var t = p.age / p.life;
 if (t >= 1) { p.s.visible = false; p.s.material.opacity = 0; return; }
 p.s.position.addScaledVector(p.v, dt); p.v.multiplyScalar(Math.max(0, 1 - 0.5 * dt));
 var sc = 0.06 + 0.75 * Math.sqrt(t); p.s.scale.set(sc, sc, 1); p.s.material.rotation += p.spin * dt;
-p.s.material.opacity = 0.3 * Math.min(1, t * 6) * Math.pow(1 - t, 1.4);
+p.s.material.opacity = (RFX.smokeImg ? 0.55 : 0.3) * Math.min(1, t * 6) * Math.pow(1 - t, 1.4);
 });
 }
 function rfxArc(key) {

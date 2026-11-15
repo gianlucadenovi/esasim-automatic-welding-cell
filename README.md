@@ -62,7 +62,7 @@ The files the project's views draw with (3D models, textures, sounds), in [asset
 
 - [textures/esacode-logo.png](assets/textures/esacode-logo.png) · 25 KB
 - [textures/smoke_puff.jpg](assets/textures/smoke_puff.jpg) · 2.2 KB
-- [views/robot_cell_viewer.js](assets/views/robot_cell_viewer.js) · 905 KB
+- [views/robot_cell_viewer.js](assets/views/robot_cell_viewer.js) · 906 KB
 
 ### Files the blueprints make
 
