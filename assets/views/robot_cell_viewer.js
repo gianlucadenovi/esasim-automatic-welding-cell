@@ -689,7 +689,7 @@ var t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return 
 }
 function rfxSparks() {
 if (RFX.sparks) return RFX.sparks;
-var N = quality === 'fast' ? 900 : 2400;
+var N = quality === 'fast' ? 3000 : 12000;
 var g = new THREE.BufferGeometry(), pos = new Float32Array(N * 6), col = new Float32Array(N * 6);
 g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
 g.setAttribute('color', new THREE.BufferAttribute(col, 3).setUsage(THREE.DynamicDrawUsage));
@@ -754,7 +754,7 @@ var A_ = RFX.arcs[key]; if (A_) return A_;
 RFX.glowTex = RFX.glowTex || rfxTex('rgba(255,255,255,1)', 'rgba(120,170,255,0.55)', 0.25);
 var glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: RFX.glowTex, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
 glow.renderOrder = 6; glow.visible = false; scene.add(glow);
-var light = new THREE.PointLight(0x8fb6ff, 0, 7, 2); light.castShadow = false; scene.add(light);
+var light = new THREE.PointLight(0x8fb6ff, 0, 3, 2); light.castShadow = false; scene.add(light);
 A_ = RFX.arcs[key] = { glow: glow, light: light, sparkAcc: 0, smokeAcc: 0, burst: 0 };
 return A_;
 }
@@ -774,10 +774,10 @@ m.getWorldPosition(RFXV);
 if (Math.random() < dt * 6) A_.burst = 0.6 + Math.random() * 0.8;
 A_.burst = Math.max(0, A_.burst - dt * 5);
 var lvl = 0.35 + 0.65 * Math.random() * Math.random() + A_.burst;
-A_.light.position.copy(RFXV); A_.light.intensity = 25 + 70 * lvl;
-A_.glow.position.copy(RFXV); var gs = 0.07 + 0.16 * lvl; A_.glow.scale.set(gs, gs, 1);
+A_.light.position.copy(RFXV); A_.light.intensity = 1.5 + 3.5 * lvl;
+A_.glow.position.copy(RFXV); var gs = 0.018 + 0.03 * lvl; A_.glow.scale.set(gs, gs, 1);
 A_.glow.material.color.setRGB(0.75 + 0.25 * Math.random(), 0.85 + 0.15 * Math.random(), 1);
-var S = rfxSparks(); A_.sparkAcc += dt * (90 + 260 * lvl);
+var S = rfxSparks(); A_.sparkAcc += dt * (400 + 900 * lvl);
 while (A_.sparkAcc >= 1) { rfxEmitSpark(S, RFXV); A_.sparkAcc -= 1; }
 var M = rfxSmoke(); A_.smokeAcc += dt * 9;
 while (A_.smokeAcc >= 1) { rfxEmitSmoke(M, RFXV); A_.smokeAcc -= 1; }
