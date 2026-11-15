@@ -5,21 +5,10 @@
     },
     "name": "1 · Learn to follow the seams",
     "description": "The seam cameras' network learns on the GPU to find the joint in laser profiles; every two minutes a whole car is welded with it, live in 3D. The network goes to the weld-tracker dataset.",
-    "published_version": 2,
-    "updated": "2026-11-15 01:15:54",
+    "published_version": 3,
+    "updated": "2026-11-15 01:18:39",
     "graph": {
         "nodes": [
-            {
-                "id": "models",
-                "type": "dataset",
-                "x": -380,
-                "y": 120,
-                "params": {
-                    "dataset": "16",
-                    "pattern": "*.glb"
-                },
-                "title": "welding-cell-models (robot, car frame)"
-            },
             {
                 "id": "learn",
                 "type": "ws-welding-cell",
@@ -28,10 +17,10 @@
                 "params": {
                     "mode": "Learn to follow the seams",
                     "accelerator": "auto",
-                    "minutes": 20,
+                    "minutes": 45,
                     "target_mm": 0.3,
-                    "batch": 2048,
-                    "replay_every": 120,
+                    "batch": 1024,
+                    "replay_every": 180,
                     "seed": 1
                 },
                 "title": "Welding cell: learn to follow the seams",
@@ -130,17 +119,6 @@
             }
         ],
         "edges": [
-            {
-                "id": "models.files>learn.models",
-                "from": {
-                    "node": "models",
-                    "port": "files"
-                },
-                "to": {
-                    "node": "learn",
-                    "port": "models"
-                }
-            },
             {
                 "id": "learn.telemetry>tel_cell.from",
                 "from": {
