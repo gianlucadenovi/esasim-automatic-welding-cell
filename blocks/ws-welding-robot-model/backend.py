@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell model (ws-welding-robot-model) · version 11 · machine block, Python: def run(ctx)
+# Welding cell model (ws-welding-robot-model) · version 12 · machine block, Python: def run(ctx)
 # The welding cell for EsaSim's 3D view: the four KUKA KR 210 robots with their swan-neck torches and the car body frame on its sled, one model with each part in its own material.
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -515,12 +515,12 @@ def g_orient(v, f, R, t):
     return np.asarray(v) @ np.asarray(R).T + t, f
 
 
-def g_split(v, f, angle=34.0):
+def g_split(v, f, angle=34.0, orient=True):
     """Split vertices where faces meet at more than angle degrees, so smooth vertex normals keep the edges sharp
     (and turn the faces outward first)."""
     v = np.asarray(v, float); f = np.asarray(f, int)
     vol = np.einsum("ij,ij->i", v[f[:, 0]] - v.mean(0), np.cross(v[f[:, 1]] - v.mean(0), v[f[:, 2]] - v.mean(0))).sum()
-    if vol < 0:
+    if orient and vol < 0:
         f = f[:, ::-1]
     fn = np.cross(v[f[:, 1]] - v[f[:, 0]], v[f[:, 2]] - v[f[:, 0]]); ln = np.linalg.norm(fn, axis=1); ok = ln > 1e-14
     fn[ok] /= ln[ok][:, None]
@@ -616,8 +616,9 @@ def g_slab(poly, y0, y1, bevel, to3):
 def gun_geometry():
     """The gun as [(group, material, vertices, faces)], group "fixed" or "moving" (the moving electrode's slide: it
     backs off by up to GUN_OPEN along -x); robot frame at zero angles, the gun closed. An X-type servo gun: a machined
-    aluminium body on the flange, the two electrode arms hanging from it (brass holders, copper shanks bent toward
-    each other, the caps meeting at the contact point), the servo actuator on the body's side, the transformer on top."""
+    aluminium body on the flange, the two electrode arms hanging from it (long brass holders, copper shanks bent toward
+    each other, the caps meeting at the contact point), the servo actuator on one side of the body, the transformer on
+    the other."""
     X = np.array([1.0, 0, 0]); Z = [0, 0, 1]; out = []
     def add(grp, mat, vf):
         out.append((grp, mat, np.asarray(vf[0], float), np.asarray(vf[1], int)))
@@ -628,26 +629,26 @@ def gun_geometry():
     hexb = lambda r=0.0075: [(0, 0), (0, r), (0.006, r), (0.007, r * 0.8), (0.007, 0)]
     to3 = lambda p, y: _g(p[0], y, p[1])
     TB = 0.04                                                                  # half the body's thickness
+    B = 0.34                                                                   # the body's underside, above the contact point
     # -- the tool changer on the flange: a turned adapter with its bolt circle
     add("fixed", "steel", L(0.0, [(0, 0), (0, 0.098), (0.004, 0.1), (0.022, 0.1), (0.026, 0.095), (0.032, 0.095), (0.032, 0)], 48))
     for k in range(8):
         a = 2 * math.pi * (k + 0.5) / 8
         add("fixed", "chrome", L(0.032, hexb(), 6, 0.08 * math.cos(a), 0.08 * math.sin(a), math.pi / 6))
-    # -- the body: a machined aluminium plate, with a mounting block to the flange
-    body = g_fillet([(0.05, -0.095), (0.17, -0.095), (0.25, 0.24), (0.61, 0.24), (0.655, 0.3), (0.61, 0.38), (0.05, 0.38)],
+    # -- the body: a machined aluminium plate, its raised pads, the bracket and gussets on the flange
+    body = g_fillet([(0.05, -0.095), (0.17, -0.095), (0.27, B), (0.61, B), (0.655, B + 0.06), (0.61, B + 0.13), (0.05, B + 0.13)],
                     [0.02, 0.06, 0.05, 0.03, 0.04, 0.05, 0.03])
     add("fixed", "alu", g_slab(body, -TB, TB, 0.005, to3))
-    pad = g_fillet([(0.27, 0.265), (0.6, 0.265), (0.622, 0.3), (0.595, 0.355), (0.27, 0.355)], 0.02)
-    for sy in (-1, 1):                                                      # raised machined pads on the faces
+    pad = g_fillet([(0.29, B + 0.025), (0.6, B + 0.025), (0.622, B + 0.06), (0.595, B + 0.105), (0.29, B + 0.105)], 0.02)
+    for sy in (-1, 1):
         add("fixed", "alu", g_slab(pad, sy * TB - 0.002 if sy > 0 else -TB - 0.006, sy * TB + 0.006 if sy > 0 else -TB + 0.002, 0.002, to3))
-    add("fixed", "steel", g_rbox(_g(0.041, 0, 0.0), [0.018, 0.2, 0.2], 0.008))                 # the bracket plate on the flange
+    add("fixed", "steel", g_rbox(_g(0.041, 0, 0.0), [0.018, 0.2, 0.2], 0.008))
     for sy in (-1, 1):
         gus = g_fillet([(0.05, -0.09), (0.12, -0.09), (0.05, 0.09)], 0.006)
         add("fixed", "steel", g_slab(gus, sy * TB if sy > 0 else -TB - 0.012, sy * TB + 0.012 if sy > 0 else -TB, 0.002, to3))
-    # bolt heads, dowel holes and a hole circle on both faces (as the machined plate has them)
-    bolts = [(0.07, 0.355), (0.13, 0.355), (0.2, 0.355), (0.07, 0.29), (0.07, 0.06), (0.11, -0.07), (0.3, 0.275), (0.38, 0.275),
-             (0.56, 0.275), (0.6, 0.35), (0.5, 0.36), (0.62, 0.31)]
-    holes = [(0.27, 0.34), (0.33, 0.36), (0.12, 0.2), (0.16, 0.13), (0.45, 0.29)]
+    bolts = [(0.07, B + 0.105), (0.13, B + 0.105), (0.2, B + 0.105), (0.07, 0.3), (0.07, 0.06), (0.11, -0.07), (0.12, 0.2),
+             (0.32, B + 0.035), (0.4, B + 0.035), (0.56, B + 0.035), (0.6, B + 0.1), (0.5, B + 0.11), (0.62, B + 0.07)]
+    holes = [(0.27, B + 0.09), (0.33, B + 0.115), (0.12, 0.25), (0.16, 0.13), (0.45, B + 0.05), (0.2, 0.3)]
     for sy in (-1, 1):
         for u, h in bolts:
             add("fixed", "chrome", Ly(u, sy * TB, h, sy, hexb(0.0085), 6, math.pi / 6))
@@ -655,64 +656,66 @@ def gun_geometry():
             add("fixed", "insul", Ly(u, sy * (TB + 0.0004), h, sy, [(0, 0), (0, 0.0065), (0.0006, 0.0065), (0.0006, 0)], 20))
         for k in range(10):
             a = 2 * math.pi * k / 10
-            add("fixed", "insul", Ly(0.43 + 0.032 * math.cos(a), sy * (TB + 0.0004), 0.31 + 0.032 * math.sin(a), sy, [(0, 0), (0, 0.004), (0.0006, 0.004), (0.0006, 0)], 14))
-        add("fixed", "label", g_rbox(_g(0.53, sy * (TB + 0.0006), 0.33), [0.05, 0.0012, 0.03], 0.0005))
-    add("fixed", "paper", g_rbox(_g(0.36, TB + 0.0006, 0.367), [0.07, 0.0012, 0.022], 0.0005))      # the barcode label
-    add("fixed", "insul", g_rbox(_g(0.36, TB + 0.0012, 0.367), [0.05, 0.0012, 0.012], 0.0003))
+            add("fixed", "insul", Ly(0.12 + 0.03 * math.cos(a), sy * (TB + 0.0004), 0.12 + 0.03 * math.sin(a), sy, [(0, 0), (0, 0.004), (0.0006, 0.004), (0.0006, 0)], 14))
+        add("fixed", "label", g_rbox(_g(0.53, sy * (TB + 0.0026), B + 0.07), [0.05, 0.0012, 0.03], 0.0005))
+    add("fixed", "paper", g_rbox(_g(0.4, -(TB + 0.0026), B + 0.085), [0.07, 0.0012, 0.022], 0.0005))      # the barcode label
+    add("fixed", "insul", g_rbox(_g(0.4, -(TB + 0.0032), B + 0.085), [0.05, 0.0012, 0.012], 0.0003))
     # -- the guide under the body the moving arm runs on, the fixed arm's seat
-    add("fixed", "steel", g_rbox(_g(0.36, 0, 0.228), [0.2, 0.05, 0.026], 0.006))
-    add("fixed", "steel", g_rbox(_g(0.53, 0, 0.222), [0.07, 0.09, 0.04], 0.008))
-    # -- the arms: brass holders bolted to their seats, the copper shanks bent toward each other, the caps
+    add("fixed", "steel", g_rbox(_g(0.36, 0, B - 0.012), [0.2, 0.05, 0.026], 0.006))
+    add("fixed", "steel", g_rbox(_g(0.535, 0, B - 0.018), [0.07, 0.09, 0.04], 0.008))
+    # -- the arms: long brass holders, the copper shanks bent toward each other, the caps
+    HT, HB, SH = B - 0.05, 0.15, 0.155                                         # holder top, holder bottom, where the copper starts
     def arm(grp, uh, sgn):
         """An arm hanging at u = uh, its shank bending toward the contact point (sgn: +1 from the robot side)."""
-        add(grp, "brass", g_rbox(_g(uh, 0, 0.16), [0.05, 0.062, 0.1], 0.008))
-        add(grp, "brass", g_rbox(_g(uh, 0, 0.205), [0.064, 0.074, 0.03], 0.008))
+        add(grp, "brass", g_rbox(_g(uh, 0, (HT + HB) / 2), [0.05, 0.062, HT - HB], 0.008))
+        add(grp, "brass", g_rbox(_g(uh, 0, HT + 0.012), [0.064, 0.074, 0.03], 0.008))
+        add(grp, "brass", g_lathe(_g(uh, 0, HB + 0.004), [0, 0, -1], [(0, 0), (0, 0.022), (0.012, 0.02), (0.016, 0.0165), (0.016, 0)], 28))
         for du in (-0.013, 0.013):
-            for h in (0.13, 0.18):
+            for h in np.linspace(HB + 0.03, HT - 0.03, 3):
                 add(grp, "chrome", Ly(uh + du, 0.031, h, 1, hexb(0.006), 6, math.pi / 6))
                 add(grp, "chrome", Ly(uh + du, -0.031, h, -1, hexb(0.006), 6, math.pi / 6))
         tip = GUN_K[0] - GUN_FLANGE[0] - sgn * 0.0135
-        sh = g_curve([_g(uh, 0, 0.115), _g(uh, 0, 0.06), _g(uh + sgn * 0.012, 0, 0.012), _g(tip - sgn * 0.02, 0, 0.0)], 14)
+        sh = g_curve([_g(uh, 0, SH - 0.02), _g(uh, 0, 0.07), _g(uh + sgn * 0.012, 0, 0.014), _g(tip - sgn * 0.02, 0, 0.0)], 16)
         add(grp, "copper", g_sweep(sh, circ(0.0135, 28)))
         add(grp, "copper", g_lathe(_g(tip - sgn * 0.021, 0, 0), [sgn, 0, 0], [(0, 0), (0, 0.0135), (0.009, 0.0135), (0.012, 0.011), (0.012, 0)], 28))
         add(grp, "cap", g_lathe(_g(tip - sgn * 0.009, 0, 0), [sgn, 0, 0], [(0, 0), (0, 0.0105), (0.005, 0.0105), (0.0085, 0.0085), (0.0098, 0.006), (0.0105, 0.003), (0.0108, 0)], 28))
         for sy in (-1, 1):                                                     # the cooling hose fittings
-            add(grp, "chrome", Ly(uh + sgn * 0.012, sy * 0.031, 0.13, sy, [(0, 0), (0, 0.006), (0.012, 0.006), (0.014, 0.0045), (0.014, 0)], 6, math.pi / 6))
+            add(grp, "chrome", Ly(uh + sgn * 0.012, sy * 0.031, HB + 0.02, sy, [(0, 0), (0, 0.006), (0.012, 0.006), (0.014, 0.0045), (0.014, 0)], 6, math.pi / 6))
     UM, UF = 0.37, 0.535
     arm("moving", UM, 1)
-    add("moving", "steel", g_rbox(_g(UM, 0, 0.228), [0.07, 0.07, 0.034], 0.007))             # the carriage
+    add("moving", "steel", g_rbox(_g(UM, 0, B - 0.012), [0.07, 0.07, 0.034], 0.007))           # the carriage
     arm("fixed", UF, -1)
-    # -- the servo actuator on the body's side driving the carriage: motor, cylinder, rod, the rod's bracket
-    YA = -(TB + 0.048); HA = 0.31
+    # -- the servo actuator on the body's side driving the carriage: motor, cylinder, rod, the rod's linkage
+    YA = -(TB + 0.048); HA = B + 0.065
     add("fixed", "motor", g_rbox(_g(0.13, YA, HA), [0.11, 0.09, 0.09], 0.014))
     for k in range(4):
         add("fixed", "motor", g_rbox(_g(0.095 + k * 0.022, YA, HA), [0.006, 0.098, 0.098], 0.014))
     add("fixed", "steel", L(0.185, [(0, 0), (0, 0.047), (0.014, 0.047), (0.014, 0)], 36, YA, HA))
     add("fixed", "alu", L(0.199, [(0, 0), (0, 0.04), (0.11, 0.04), (0.114, 0.036), (0.114, 0)], 36, YA, HA))
-    add("fixed", "steel", g_rbox(_g(0.3, (YA + -TB) / 2, HA), [0.03, abs(YA + TB) + 0.04, 0.07], 0.006))   # its nose bracket on the body
+    add("fixed", "steel", g_rbox(_g(0.3, (YA - TB) / 2, HA), [0.03, abs(YA + TB) + 0.04, 0.07], 0.006))
     add("moving", "chrome", L(0.313, [(0, 0), (0, 0.014), (0.06, 0.014), (0.06, 0)], 24, YA, HA))
-    add("moving", "steel", g_rbox(_g(UM, (YA - 0.035) / 2 + 0.01, 0.262), [0.04, abs(YA) + 0.0, 0.03], 0.006))  # rod end to the carriage
     add("moving", "steel", g_rbox(_g(0.36, YA, HA), [0.03, 0.04, 0.05], 0.006))
-    add("moving", "steel", g_rbox(_g(UM, YA, (HA + 0.262) / 2), [0.03, 0.03, HA - 0.262 + 0.03], 0.006))
-    # -- the transformer on top, the shunts down to the arms, the dress of cables and cooling hoses
-    add("fixed", "transformer", g_rbox(_g(0.17, 0, 0.415), [0.24, 0.11, 0.07], 0.012))
+    add("moving", "steel", g_rbox(_g(UM, YA, (HA + B - 0.012) / 2), [0.03, 0.03, HA - B + 0.042], 0.006))
+    add("moving", "steel", g_rbox(_g(UM, (YA - 0.035) / 2, B - 0.012), [0.03, abs(YA) - 0.03, 0.026], 0.006))
+    # -- the transformer on the body's other side, its cables down to the tool changer, the cooling hoses
+    YT = TB + 0.045
+    add("fixed", "transformer", g_rbox(_g(0.17, YT, B + 0.06), [0.24, 0.09, 0.11], 0.012))
     for k in range(7):
-        add("fixed", "transformer", g_rbox(_g(0.075 + k * 0.032, 0, 0.455), [0.008, 0.09, 0.014], 0.003))
-    add("fixed", "label", g_rbox(_g(0.2, 0.0555, 0.415), [0.07, 0.0012, 0.035], 0.0005))
-    add("fixed", "steel", g_rbox(_g(0.33, 0, 0.405), [0.06, 0.08, 0.05], 0.01))               # cable junction box
-    for k, (col, dy) in enumerate((("wire_green", -0.03), ("cable", -0.01), ("wire_red", 0.01), ("cable", 0.03))):
-        p = g_curve([_g(0.36, dy, 0.42), _g(0.375, dy * 1.2, 0.46), _g(0.3, dy * 1.4, 0.475), _g(0.06, dy * 1.4, 0.475), _g(0.015, dy * 1.4, 0.44), _g(0.02, dy, 0.39)], 10)
+        add("fixed", "transformer", g_rbox(_g(0.075 + k * 0.032, YT + 0.047, B + 0.06), [0.008, 0.012, 0.09], 0.003))
+    add("fixed", "label", g_rbox(_g(0.17, YT - 0.02, B + 0.1155), [0.07, 0.035, 0.0012], 0.0005))
+    for k, (col, dz) in enumerate((("wire_green", -0.03), ("cable", -0.01), ("wire_red", 0.01), ("cable", 0.03))):
+        p = g_curve([_g(0.06, YT, B + 0.06 + dz), _g(0.035, YT + 0.005, B + 0.04 + dz), _g(0.03, YT, 0.2 + dz * 0.5), _g(0.045, TB + 0.03, 0.1 + dz * 0.3)], 12)
         add("fixed", col, g_sweep(p, circ(0.0075, 12)))
+    add("fixed", "steel", g_rbox(_g(0.06, TB + 0.03, 0.09), [0.035, 0.05, 0.06], 0.008))        # their connector at the bracket
     for sy, grp, uh, sg in ((1, "moving", UM, 1), (-1, "moving", UM, 1), (1, "fixed", UF, -1), (-1, "fixed", UF, -1)):
-        u0 = uh + sg * 0.012; ut = uh - sg * 0.03
+        u0 = uh + sg * 0.012; ut = uh - sg * 0.03; h0 = HB + 0.02
         if grp == "moving":                                                    # (to the carriage: it moves with it)
-            p = g_curve([_g(u0, sy * 0.045, 0.13), _g(u0, sy * 0.062, 0.18), _g(uh - 0.02, sy * 0.05, 0.214), _g(uh - 0.02, sy * 0.036, 0.226)], 12)
+            p = g_curve([_g(u0, sy * 0.045, h0), _g(u0, sy * 0.062, h0 + 0.06), _g(uh - 0.02, sy * 0.05, B - 0.03), _g(uh - 0.02, sy * 0.036, B - 0.016)], 12)
         else:
-            p = g_curve([_g(u0, sy * 0.045, 0.13), _g(u0 + sg * 0.004, sy * 0.062, 0.19), _g(ut, sy * 0.06, 0.26), _g(ut, sy * 0.054, 0.3)], 12)
+            p = g_curve([_g(u0, sy * 0.045, h0), _g(u0 + sg * 0.004, sy * 0.062, h0 + 0.08), _g(ut, sy * 0.06, B - 0.02), _g(ut, sy * 0.054, B + 0.04)], 12)
         add(grp, "hose_green", g_sweep(p, circ(0.0055, 12)))
     for sy in (-1, 1):
-        for u in (UF + 0.03,):
-            add("fixed", "brass", Ly(u, sy * (TB + 0.006), 0.31, sy, [(0, 0), (0, 0.008), (0.012, 0.008), (0.014, 0.006), (0.014, 0)], 6, math.pi / 6))
+        add("fixed", "brass", Ly(UF + 0.03, sy * (TB + 0.006), B + 0.05, sy, [(0, 0), (0, 0.008), (0.012, 0.008), (0.014, 0.006), (0.014, 0)], 6, math.pi / 6))
     return out
 
 
@@ -824,6 +827,8 @@ def run(ctx):
         joints.append(j); layout.append(role)
         if parent is None:
             state["o"] = np.asarray(origin_world, float)
+        if mesh is not None and role.startswith("static:") and " gun " not in role and len(mesh[1]) < 300000:
+            mesh = g_split(mesh[0], mesh[1], orient=False)    # (flat faces flat, edges sharp: each face's own normals at its edges)
         links.append(pack(mesh[0], mesh[1], mat) if mesh is not None else {})
         if mesh is not None and role in ("car:yaw", "car2:yaw", "car3:yaw"):
             links[-1]["envmap"] = "cube"                   # metal: a view with a cube map shows the cell in it
