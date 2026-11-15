@@ -633,6 +633,7 @@ for (var n = 0; n < l.v.length; n++) pos[n] = l.v[n] * k;
 g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setIndex(l.f); g.computeVertexNormals();
 var m = new THREE.Mesh(g, mat(i, l)); m.castShadow = !ghost && !l.emissive && l.shadow !== false; m.receiveShadow = !ghost; holder.add(m);
 if (!ghost && J[i - 1] && lc(J[i - 1].name || '') === 'static:floor line' && m.material.isMeshStandardMaterial) { m.material = m.material.clone(); rfxWornPaint(m.material); m.castShadow = false; }
+if (!ghost && J[i - 1] && /beams$/.test(lc(J[i - 1].name || ''))) rfxBeamLines(m);
 var fx_ = l.fx || (J[i - 1] && /^(bead\d*|mark\d*):/i.test(J[i - 1].name || '') ? 'bead' : null);
 if (!ghost && fx_) { m.userData.fx = fx_; fxMeshes.push(m); if (fx_ === 'bead') m.castShadow = false; }
 if (!ghost && l.envmap === 'cube') cubeMeshes.push(m);
@@ -921,6 +922,24 @@ sh.fragmentShader = 'varying vec3 vWpw;\n'
 mt.customProgramCacheKey = function () { return 'weld-worn-paint'; };
 mt.needsUpdate = true;
 }
+// the light curtains' beams: drawn as lines (a pixel wide at any distance: a thin cylinder far off breaks into dots);
+// each beam is one piece of the mesh, its length along the longest side of its box
+function rfxBeamLines(m) {
+var P = m.geometry.attributes.position, I = m.geometry.index, n = P.count, par = new Int32Array(n), key = {}, id = new Int32Array(n);
+for (var i = 0; i < n; i++) { var k = Math.round(P.getX(i) * 1e4) + ',' + Math.round(P.getY(i) * 1e4) + ',' + Math.round(P.getZ(i) * 1e4); id[i] = key[k] != null ? key[k] : (key[k] = i); par[i] = i; }
+var find = function (x) { while (par[x] !== x) { par[x] = par[par[x]]; x = par[x]; } return x; };
+var join = function (a, b) { a = find(id[a]); b = find(id[b]); if (a !== b) par[a] = b; };
+for (var t = 0; t < I.count; t += 3) { join(I.getX(t), I.getX(t + 1)); join(I.getX(t + 1), I.getX(t + 2)); }
+var box = {};
+for (var i = 0; i < n; i++) { var r = find(id[i]), b = box[r] || (box[r] = [1e9, 1e9, 1e9, -1e9, -1e9, -1e9]), x = P.getX(i), y = P.getY(i), z = P.getZ(i);
+b[0] = Math.min(b[0], x); b[1] = Math.min(b[1], y); b[2] = Math.min(b[2], z); b[3] = Math.max(b[3], x); b[4] = Math.max(b[4], y); b[5] = Math.max(b[5], z); }
+var pts = [];
+Object.keys(box).forEach(function (r) { var b = box[r], c = [(b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2], e = [b[3] - b[0], b[4] - b[1], b[5] - b[2]];
+var ax = e[0] >= e[1] && e[0] >= e[2] ? 0 : e[1] >= e[2] ? 1 : 2, p0 = c.slice(), p1 = c.slice(); p0[ax] = b[ax]; p1[ax] = b[ax + 3]; pts.push(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2]); });
+var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+var ln = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xff3b2f, transparent: true, opacity: 0.55, toneMapped: false, depthWrite: false }));
+ln.renderOrder = 2; m.parent.add(ln); ln.position.copy(m.position); ln.quaternion.copy(m.quaternion); m.visible = false;
+}
 // the robots' dress packs: a black corrugated conduit from the base through the clamps on the links to the torch or
 // the gun (the model's "dress"), redrawn every frame through where the clamps are, sagging between them
 var DRV = new THREE.Vector3(), DRV2 = new THREE.Vector3(), DRV3 = new THREE.Vector3();
@@ -1088,7 +1107,8 @@ var efl = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshBasicM
 if (RFX.hallEnv) RFX.hallEnv.dispose();
 RFX.hallEnv = pmrem.fromScene(es, 0.02);
 if (quality === 'high' && !RFX.glow && !composer) {
-composer = new A.EffectComposer(renderer); composer.addPass(new A.RenderPass(scene, camera));
+var msaa = new THREE.WebGLRenderTarget(256, 256, { type: THREE.HalfFloatType, samples: Math.min(8, renderer.capabilities.maxSamples || 4) });   // (antialiased: the bloom pass would lose it)
+composer = new A.EffectComposer(renderer, msaa); composer.addPass(new A.RenderPass(scene, camera));
 composer.addPass(cleanPass()); RFX.glow = new A.UnrealBloomPass(new THREE.Vector2(256, 256), 0.6, 0.35, 1.3); composer.addPass(RFX.glow); composer.addPass(new A.OutputPass());
 resize();
 }
