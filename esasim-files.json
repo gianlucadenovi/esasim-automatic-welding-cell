@@ -39,7 +39,14 @@
             "sha256": "5165bee68f3a011323761eb87cfae64a9f5076c092c6f27f2627a1a1820c1091",
             "zip": "assets/textures/esacode-logo.png",
             "in": "repo"
+        },
+        {
+            "path": "views/robot_cell_viewer.js",
+            "size": 919561,
+            "sha256": "fae7f172a0e1af39119c286233980cda5c50a9863adb7d0dffc0cb6db9ff1b15",
+            "zip": "assets/views/robot_cell_viewer.js",
+            "in": "repo"
         }
     ],
-    "saved": "2026-11-15T05:54:36+00:00"
+    "saved": "2026-11-15T06:47:51+00:00"
 }
