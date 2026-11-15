@@ -1,14 +1,14 @@
 # Welding cell
 
-Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam; learn on the GPU, then run the line car after car; a sc
+Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam; learn on the GPU (or the CPU), then run the line car af
 
-What to do: Learn to follow the seams (NVIDIA GPU) trains the seam camera's network on simulated laser profiles and, every couple of minutes, welds a whole car with it; the network goes out as seam_tracker_<date>_<p95>um.pt (send it to a dataset wired back to Seam tracker so learning goes on from it). Run the production line (any machine) welds car after car with the newest network: the sled brings the car in (it stops within ±3 cm), the four robots read two reference points each with their laser line and find the car's position and turn, then weld their seams following the camera, and the car leaves for the next one. Seam camera off (or no network yet) welds the taught programme as it is, to compare. Each robot works out by itself which way round to weld each seam, how to lean the torch and from which arm pose. 3D: wire the welding-cell-models dataset (kr210_weld.glb, s15_frame.glb) to Models and the 3D scene output to a 3D view: the newest five cars replay there, each robot part posed, the seams in yellow on the frame and a blue dot at each wire tip while it welds. Results: every weld (worst and mean distance from the real seam, in mm) and every car (where it really was and where the robots found it, cycle time).
+What to do: Learn to follow the seams trains the seam camera's network on simulated laser profiles (on an NVIDIA GPU when the machine has one, otherwise on the CPU, with Accelerator auto) and, every couple of minutes, welds a whole car with it; the network goes out as seam_tracker_<date>_<p95>um.pt (send it to a dataset wired back to Seam tracker so learning goes on from it). Run the production line (any machine) welds car after car with the newest network: the sled brings the car in (it stops within ±3 cm), the four robots read two reference points each with their laser line and find the car's position and turn, then weld their seams following the camera, and the car leaves for the next one. Seam camera off (or no network yet) welds the taught programme as it is, to compare. Each robot works out by itself which way round to weld each seam, how to lean the torch and from which arm pose. 3D: wire the welding-cell-models dataset (kr210_weld.glb, s15_frame.glb) to Models and the 3D scene output to a 3D view: the newest five cars replay there, each robot part posed, the seams in yellow on the frame and a blue dot at each wire tip while it welds. Results: every weld (worst and mean distance from the real seam, in mm) and every car (where it really was and where the robots found it, cycle time).
 
 An [EsaSim](https://esacode.com/) blueprint block: it runs on a machine, in Python (`backend.py`, `def run(ctx)`).
 
 | | |
 |---|---|
-| Block | `ws-welding-cell` · version 2 |
+| Block | `ws-welding-cell` · version 3 |
 | Workspace | Gianluca De Novi's workspace |
 | Author | Gianluca De Novi |
 | Runs on | Any machine, NVIDIA GPU |
@@ -36,7 +36,7 @@ An [EsaSim](https://esacode.com/) blueprint block: it runs on a machine, in Pyth
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `mode` What to do | select | `"Learn to follow the seams"` |  |
-| `accelerator` Accelerator (learning) | select | `"auto"` |  |
+| `accelerator` Accelerator | select | `"auto"` | auto: an NVIDIA GPU when the machine has one, otherwise the CPU (learning is several times slower there). The production line needs no GPU |
 | `minutes` Learning: minutes at most | number | `20` |  |
 | `target_mm` Learning: stop at (mm, 95 % of readings) | number | `0.3` |  |
 | `batch` Learning: profiles per step | number | `2048` |  |

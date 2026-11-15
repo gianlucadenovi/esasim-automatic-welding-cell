@@ -6,9 +6,20 @@
     "name": "1 · Learn to follow the seams",
     "description": "The seam cameras' network learns on the GPU to find the joint in laser profiles; every two minutes a whole car is welded with it, live in 3D. The network goes to the weld-tracker dataset.",
     "published_version": 1,
-    "updated": "2026-11-15 00:52:50",
+    "updated": "2026-11-15 01:09:16",
     "graph": {
         "nodes": [
+            {
+                "id": "models",
+                "type": "dataset",
+                "x": -380,
+                "y": 120,
+                "params": {
+                    "dataset": "16",
+                    "pattern": "*.glb"
+                },
+                "title": "welding-cell-models (robot, car frame)"
+            },
             {
                 "id": "learn",
                 "type": "ws-welding-cell",
@@ -41,11 +52,11 @@
                 "x": 380,
                 "y": 0,
                 "params": {
-                    "interval": 0.5,
-                    "channels": "cell,event,sensor,train",
+                    "interval": 1,
+                    "channels": "event,train",
                     "keep": 3000
                 },
-                "title": "The cell, live"
+                "title": "Events and scores, live"
             },
             {
                 "id": "tel_train",
@@ -61,13 +72,21 @@
             },
             {
                 "id": "view",
-                "type": "ws-welding-cell-3d-view",
+                "type": "viewer-3d",
                 "x": 760,
                 "y": -60,
                 "params": {
-                    "quality": "high"
+                    "environment": "studio",
+                    "quality": "high",
+                    "floor": true,
+                    "grid": false,
+                    "trails": false,
+                    "speed": 1,
+                    "live_channel": "none",
+                    "numbers": "train.minutes=Minutes, train.p95_confident_mm=Camera: 95 % within:mm, train.car_worst_mm=Last car: worst weld:mm, train.car_seams_ok=Last car: seams OK",
+                    "events_channel": "event"
                 },
-                "title": "The welding cell (a car welded with the network as it is)"
+                "title": "The welding cell in 3D (cars welded with the network as it learns)"
             },
             {
                 "id": "acc",
@@ -112,6 +131,17 @@
         ],
         "edges": [
             {
+                "id": "models.files>learn.models",
+                "from": {
+                    "node": "models",
+                    "port": "files"
+                },
+                "to": {
+                    "node": "learn",
+                    "port": "models"
+                }
+            },
+            {
                 "id": "learn.telemetry>tel_cell.from",
                 "from": {
                     "node": "learn",
@@ -134,14 +164,25 @@
                 }
             },
             {
-                "id": "tel_cell.stream>view.live",
+                "id": "learn.scene>view.scene",
+                "from": {
+                    "node": "learn",
+                    "port": "scene"
+                },
+                "to": {
+                    "node": "view",
+                    "port": "scene"
+                }
+            },
+            {
+                "id": "tel_cell.stream>view.scene",
                 "from": {
                     "node": "tel_cell",
                     "port": "stream"
                 },
                 "to": {
                     "node": "view",
-                    "port": "live"
+                    "port": "scene"
                 }
             },
             {

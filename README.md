@@ -22,6 +22,7 @@ Learn on the GPU, then run the line car after car, live in 3D.
 ## What you need
 
 - A machine with the EsaSim worker (Project > Compute); it runs on any machine, faster with: NVIDIA GPU.
+- Data it reads: the dataset **welding-cell-models** of the workspace, read by *welding-cell-models (robot, car frame)*.
 - Python packages, installed by the worker the first time: `torch`, `numpy`, `trimesh`.
 
 ## How to run it
@@ -32,7 +33,11 @@ Learn on the GPU, then run the line car after car, live in 3D.
 
 ## What you get
 
-- On the **View** page: *The cell, live* (1 · Learn to follow the seams), *Learning curve* (1 · Learn to follow the seams), *The welding cell (a car welded with the network as it is)* (1 · Learn to follow the seams), *How well the seam camera reads* (1 · Learn to follow the seams), *By joint type* (1 · Learn to follow the seams), *Learning* (1 · Learn to follow the seams).
+- On the **View** page: *welding-cell-models (robot, car frame)* (2 · Production line), *Events and scores, live* (1 · Learn to follow the seams), *Learning curve* (1 · Learn to follow the seams), *The welding cell in 3D (cars welded with the network as it learns)* (1 · Learn to follow the seams), *How well the seam camera reads* (1 · Learn to follow the seams), *By joint type* (1 · Learn to follow the seams), *Learning* (1 · Learn to follow the seams), *Events and line numbers, live* (2 · Production line), *Car by car* (2 · Production line), *The welding cell in 3D (the newest five cars)* (2 · Production line), *Weld accuracy, car by car* (2 · Production line), *Finding the car* (2 · Production line).
+
+## Data and licences
+
+- the dataset **welding-cell-models** of the workspace, read by *welding-cell-models (robot, car frame)*
 
 <!-- esasim: files of the project -->
 
@@ -42,12 +47,11 @@ An [EsaSim](https://esacode.com/) project of the workspace Gianluca De Novi's wo
 
 ### Blueprints in this repository
 
-- [1 · Learn to follow the seams](blueprints/1-learn-to-follow-the-seams.json) · 7 blocks · version 1
-- [2 · Production line](blueprints/2-production-line.json) · 0 blocks
+- [1 · Learn to follow the seams](blueprints/1-learn-to-follow-the-seams.json) · 8 blocks · version 1
+- [2 · Production line](blueprints/2-production-line.json) · 9 blocks
 
 ### Workspace blocks it uses
 
-- [Welding cell](blocks/ws-welding-cell) · version 2
-- [Welding cell 3D view](blocks/ws-welding-cell-3d-view) · version 1
+- [Welding cell](blocks/ws-welding-cell) · version 3
 
 Keys pasted in blocks (secret settings) are not saved here. Datasets, results and the team stay in EsaSim.

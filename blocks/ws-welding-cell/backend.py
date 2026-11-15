@@ -1,6 +1,6 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell (ws-welding-cell) · version 2 · machine block, Python: def run(ctx)
-# Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam; learn on the GPU, then run the line car after car; a sc
+# Welding cell (ws-welding-cell) · version 3 · machine block, Python: def run(ctx)
+# Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam; learn on the GPU (or the CPU), then run the line car af
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
 #
@@ -17,7 +17,7 @@
 #   telemetry   Live telemetry            ctx.telemetry("channel", data) while it runs
 # Settings ctx.params["key"]
 #   mode        select    What to do = "Learn to follow the seams" of Learn to follow the seams | Run the production line
-#   accelerator select    Accelerator (learning) = "auto" of auto | NVIDIA GPU | CPU
+#   accelerator select    Accelerator = "auto" of auto | NVIDIA GPU | CPU
 #   minutes     number    Learning: minutes at most = 20
 #   target_mm   number    Learning: stop at (mm, 95 % of readings) = 0.3
 #   batch       number    Learning: profiles per step = 2048

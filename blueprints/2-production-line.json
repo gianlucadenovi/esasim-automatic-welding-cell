@@ -6,10 +6,235 @@
     "name": "2 · Production line",
     "description": "Car after car: the sled brings the frame in, the four robots find it with their laser cameras, weld their quarter of it following the seams, and the car slides out for the next one.",
     "published_version": 0,
-    "updated": "2026-11-15 00:41:00",
+    "updated": "2026-11-15 01:09:31",
     "graph": {
-        "nodes": [],
-        "edges": [],
-        "notes": []
+        "nodes": [
+            {
+                "id": "models",
+                "type": "dataset",
+                "x": -380,
+                "y": 120,
+                "params": {
+                    "dataset": "16",
+                    "pattern": "*.glb"
+                },
+                "title": "welding-cell-models (robot, car frame)"
+            },
+            {
+                "id": "line",
+                "type": "ws-welding-cell",
+                "x": 0,
+                "y": 200,
+                "params": {
+                    "mode": "Run the production line",
+                    "cars": 5,
+                    "max_minutes": 20,
+                    "weld_speed": 80,
+                    "tolerance_mm": 1,
+                    "sled_error_mm": 30,
+                    "car_offset_mm": 8,
+                    "car_turn_deg": 0.4,
+                    "build_mm": 1.2,
+                    "seam_camera": true,
+                    "seed": 7
+                },
+                "title": "Welding cell: production line"
+            },
+            {
+                "id": "tel",
+                "type": "telemetry",
+                "x": 380,
+                "y": 0,
+                "params": {
+                    "interval": 1,
+                    "channels": "event,line",
+                    "keep": 3000
+                },
+                "title": "Events and line numbers, live"
+            },
+            {
+                "id": "tel_line",
+                "type": "telemetry",
+                "x": 380,
+                "y": 420,
+                "params": {
+                    "interval": 1,
+                    "channels": "line",
+                    "keep": 4000
+                },
+                "title": "Car by car"
+            },
+            {
+                "id": "view",
+                "type": "viewer-3d",
+                "x": 760,
+                "y": -60,
+                "params": {
+                    "environment": "studio",
+                    "quality": "high",
+                    "floor": true,
+                    "grid": false,
+                    "trails": false,
+                    "speed": 1,
+                    "live_channel": "none",
+                    "numbers": "line.cars=Cars, line.seams_ok_pct=Seams OK:%, line.worst_mm=Last car: worst weld:mm, line.cycle_s=Cycle:s, line.cars_per_hour=Cars / hour",
+                    "events_channel": "event"
+                },
+                "title": "The welding cell in 3D (the newest five cars)"
+            },
+            {
+                "id": "errors",
+                "type": "chart",
+                "x": 760,
+                "y": 320,
+                "params": {
+                    "kind": "line",
+                    "x": "cars",
+                    "y": "worst_mm,mean_mm",
+                    "channel": "line",
+                    "title": "Weld error per car (mm): worst seam and mean"
+                },
+                "title": "Weld accuracy, car by car"
+            },
+            {
+                "id": "found",
+                "type": "chart",
+                "x": 760,
+                "y": 560,
+                "params": {
+                    "kind": "line",
+                    "x": "cars",
+                    "y": "off_across_mm,found_across_mm,off_along_mm,found_along_mm",
+                    "channel": "line",
+                    "title": "Where the car really stopped and where the robots found it (mm)"
+                },
+                "title": "Finding the car"
+            },
+            {
+                "id": "numbers",
+                "type": "gauge-view",
+                "x": 1140,
+                "y": 360,
+                "params": {
+                    "fields": "line.cars,line.seams_ok_pct,line.worst_mm,line.cycle_s,line.cars_per_hour",
+                    "style": "number",
+                    "decimals": 2
+                },
+                "title": "The line"
+            },
+            {
+                "id": "welds_table",
+                "type": "table-view",
+                "x": 380,
+                "y": 700,
+                "params": [],
+                "title": "Every weld"
+            }
+        ],
+        "edges": [
+            {
+                "id": "models.files>line.models",
+                "from": {
+                    "node": "models",
+                    "port": "files"
+                },
+                "to": {
+                    "node": "line",
+                    "port": "models"
+                }
+            },
+            {
+                "id": "line.telemetry>tel.from",
+                "from": {
+                    "node": "line",
+                    "port": "telemetry"
+                },
+                "to": {
+                    "node": "tel",
+                    "port": "from"
+                }
+            },
+            {
+                "id": "line.telemetry>tel_line.from",
+                "from": {
+                    "node": "line",
+                    "port": "telemetry"
+                },
+                "to": {
+                    "node": "tel_line",
+                    "port": "from"
+                }
+            },
+            {
+                "id": "line.scene>view.scene",
+                "from": {
+                    "node": "line",
+                    "port": "scene"
+                },
+                "to": {
+                    "node": "view",
+                    "port": "scene"
+                }
+            },
+            {
+                "id": "tel.stream>view.scene",
+                "from": {
+                    "node": "tel",
+                    "port": "stream"
+                },
+                "to": {
+                    "node": "view",
+                    "port": "scene"
+                }
+            },
+            {
+                "id": "tel_line.stream>errors.data",
+                "from": {
+                    "node": "tel_line",
+                    "port": "stream"
+                },
+                "to": {
+                    "node": "errors",
+                    "port": "data"
+                }
+            },
+            {
+                "id": "tel_line.stream>found.data",
+                "from": {
+                    "node": "tel_line",
+                    "port": "stream"
+                },
+                "to": {
+                    "node": "found",
+                    "port": "data"
+                }
+            },
+            {
+                "id": "tel_line.stream>numbers.data",
+                "from": {
+                    "node": "tel_line",
+                    "port": "stream"
+                },
+                "to": {
+                    "node": "numbers",
+                    "port": "data"
+                }
+            },
+            {
+                "id": "line.welds>welds_table.data",
+                "from": {
+                    "node": "line",
+                    "port": "welds"
+                },
+                "to": {
+                    "node": "welds_table",
+                    "port": "data"
+                }
+            }
+        ],
+        "notes": [],
+        "dash": {
+            "items": []
+        }
     }
 }
