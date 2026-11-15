@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell (ws-welding-cell) · version 11 · machine block, Python: def run(ctx)
+# Welding cell (ws-welding-cell) · version 12 · machine block, Python: def run(ctx)
 # Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam, without the robots touching the car or each other; lear
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -280,12 +280,13 @@ COLL = None                 # the cell's Collide, once the models are read
 
 # ===================================================================================================== the spot welding cell
 # The line has two cells along the rail: this MIG cell (its car stops at CELL_A_X) and, after it, a spot welding cell
-# (CELL_B_X) with four more KR 210s carrying C-guns. Everything above is worked out in the MIG cell's own frame (its car
-# stops at x = 0); the spot cell works in its own frame too, and the 3D view puts each where it is on the rail. A car
-# stays on its sled through both cells: the model has two sleds (car, car2); while one car is welded in the MIG cell the
-# one before it gets its spot welds, then the spot cell's car leaves through the exit door, the MIG cell's car moves on
-# into the spot cell, where locating pins hold it exactly, and the next car comes in through the entry door on the
-# sled that has just gone out (put back to the start behind the closed doors).
+# (CELL_B_X) with four more KR 210s carrying X-type servo guns. Everything above is worked out in the MIG cell's own
+# frame (its car stops at x = 0); the spot cell works in its own frame too, and the 3D view puts each where it is on the
+# rail. A car stays on its sled through both cells: the model has three sleds (car, car2, car3); while one car is welded
+# in the MIG cell the one before it gets its spot welds, and the next waits at the entry. The doors open as the cells
+# finish; then, in one move, the spot cell's car leaves through the exit door, the MIG cell's car moves on into the spot
+# cell, where locating pins hold it exactly, and the next car comes in. The sled that went out comes round to the entry
+# behind the closed doors with the car after.
 # The spot guns weld a fixed programme: the car is pinned, so the same spots, planned once (reachable, and clear of the
 # car at the approach, on the way in and clamped), are welded on every car. For each spot the open gun comes to 12 cm
 # off the sheet's edge, slides on over it, touches, closes, welds for a second, opens and slides back off.
@@ -299,35 +300,324 @@ SPOT_CLEAR_ARM, SPOT_CLEAR_GUN = 0.025, 0.006               # m: least distances
 SPOTS_CELL = r'''{"front_right":[[0.651,-0.88,0.2376,-0.0549,-0.7404,0.6699,0.1804,-0.6672,-0.7227,39.6,28.07,-45.55,-49.76,-51.65,65.42],[0.721,-0.9522,0.114,-0.037,-0.9975,0.0601,0.9974,-0.0331,0.0644,49.6,11.45,-68.27,-112.53,-71.97,55.93],[0.7256,-0.9656,-0.0266,0.1172,-0.993,0.0166,0.993,0.1169,-0.0148,45.66,-10.39,-72.73,-130.88,-84.56,85.68],[0.7212,-0.9628,-0.1401,0.1061,-0.9923,-0.0641,0.9923,0.1098,-0.0574,46.0,-37.88,-68.23,-128.25,-103.94,105.95],[0.7144,-0.9589,-0.2248,-0.162,-0.9819,-0.0976,0.9839,-0.1532,-0.092,52.5,-44.55,-58.42,-106.55,-99.53,107.86],[1.6817,-1.0231,-0.0376,0.1458,-0.9859,-0.0818,0.7562,0.0577,0.6518,-63.09,-29.85,-76.48,-63.77,102.25,-145.46]],"front_left":[[0.651,0.88,0.2376,-0.0549,0.7404,0.6699,0.1804,0.6672,-0.7227,-39.6,28.07,-45.55,49.76,-51.65,-65.42],[0.721,0.9522,0.114,-0.037,0.9975,0.0601,0.9974,0.0331,0.0644,-49.6,11.45,-68.27,112.53,-71.97,-55.93],[0.7256,0.9656,-0.0266,0.1172,0.993,0.0166,0.993,-0.1169,-0.0148,-45.66,-10.39,-72.73,130.88,-84.56,-85.68],[0.7212,0.9628,-0.1401,0.1061,0.9923,-0.0641,0.9923,-0.1098,-0.0574,-46.0,-37.88,-68.23,128.25,-103.94,-105.95],[0.7144,0.9589,-0.2248,-0.162,0.9819,-0.0976,0.9839,0.1532,-0.092,-52.5,-44.55,-58.42,106.55,-99.53,-107.86],[1.6817,1.0231,-0.0376,0.1458,0.9859,-0.0818,0.7562,-0.0577,0.6518,63.09,-29.85,-76.48,63.77,102.25,145.46]],"rear_right":[[-1.2316,-0.7949,0.3966,-0.6209,-0.782,-0.0543,-0.5813,0.5058,-0.6374,23.8,14.19,-51.73,-117.66,-63.25,185.58],[-0.7072,-0.9583,0.1695,-0.0063,-0.9785,0.2059,-0.9875,0.0385,0.1527,-35.03,13.7,-54.72,113.78,-48.55,-36.21],[-0.6966,-0.9528,0.1857,-0.009,-0.9445,0.3284,-0.5749,0.2736,0.7711,-34.25,17.31,-51.27,99.57,-41.3,24.69],[-0.6947,-0.9643,0.1437,0.0229,-0.9759,0.2171,-0.5066,-0.1985,-0.839,-36.5,11.26,-54.15,111.74,-50.99,-105.12],[-2.0073,-0.9592,-0.1403,-0.171,-0.982,-0.0802,-0.4156,-0.0019,0.9096,56.21,-29.15,-54.79,55.96,91.23,150.76],[-2.3189,-0.9062,-0.0935,-0.2034,-0.9779,-0.0487,-0.7163,0.1147,0.6883,64.66,-28.49,-40.91,66.91,84.56,114.65]],"rear_left":[[-1.2316,0.7949,0.3966,-0.6209,0.782,-0.0543,-0.5813,-0.5058,-0.6374,-23.8,14.19,-51.73,117.66,-63.25,-185.58],[-0.7072,0.9583,0.1695,-0.0063,0.9785,0.2059,-0.9875,-0.0385,0.1527,35.03,13.7,-54.72,-113.78,-48.55,36.21],[-0.6966,0.9528,0.1857,-0.009,0.9445,0.3284,-0.5749,-0.2736,0.7711,34.25,17.31,-51.27,-99.57,-41.3,-24.69],[-0.6947,0.9643,0.1437,0.0229,0.9759,0.2171,-0.5066,0.1985,-0.839,36.5,11.26,-54.15,-111.74,-50.99,105.12],[-2.0073,0.9592,-0.1403,-0.171,0.982,-0.0802,-0.4156,0.0019,0.9096,-56.21,-29.15,-54.79,-55.96,91.23,-150.76],[-2.3189,0.9062,-0.0935,-0.2034,0.9779,-0.0487,-0.7163,-0.1147,0.6883,-64.66,-28.49,-40.91,-66.91,84.56,-114.65]]}'''                                 # per robot, in welding order: [p (3), n (3), x (3), seed q (6, deg)], car frame
 
 
-def _gbox(c, s):
-    c = np.array(c, float); h = np.array(s, float) / 2
-    v = np.array([[x, y, z] for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)], float) * h + c
-    f = [[0, 1, 3], [0, 3, 2], [4, 6, 7], [4, 7, 5], [0, 4, 5], [0, 5, 1], [2, 3, 7], [2, 7, 6], [0, 2, 6], [0, 6, 4], [1, 5, 7], [1, 7, 3]]
-    return v, np.array(f)
+GUN_FLANGE = np.array([1.79, 0.0, 1.784])                  # the flange face on the A6 axis
 
 
-def _gcyl(p0, p1, r0, r1=None, n=16):
-    r1 = r0 if r1 is None else r1
-    p0 = np.asarray(p0, float); p1 = np.asarray(p1, float); a = p1 - p0; a = a / np.linalg.norm(a)
-    u = np.cross(a, [0, 0, 1] if abs(a[2]) < 0.9 else [1, 0, 0]); u /= np.linalg.norm(u); w = np.cross(a, u)
-    ang = np.linspace(0, 2 * math.pi, n, endpoint=False); ring = np.cos(ang)[:, None] * u + np.sin(ang)[:, None] * w
-    v = np.vstack([p0 + r0 * ring, p1 + r1 * ring, [p0, p1]]); f = []
-    for k in range(n):
-        k2 = (k + 1) % n
-        f += [[k, k2, n + k2], [k, n + k2, n + k], [2 * n, k2, k], [2 * n + 1, n + k, n + k2]]
-    return v, np.array(f)
+def _g(u, y, h):
+    """Gun coordinates (u along the flange axis from the flange face, y, h up from the axis) to the robot frame."""
+    return GUN_FLANGE + np.array([u, y, h], float)
+
+
+def _frame(a):
+    a = np.asarray(a, float); a = a / np.linalg.norm(a)
+    t = np.array([0, 0, 1.0]) if abs(a[2]) < 0.9 else np.array([1.0, 0, 0])
+    b1 = np.cross(a, t); b1 /= np.linalg.norm(b1); b2 = np.cross(a, b1)
+    return a, b1, b2
+
+
+def g_lathe(p0, axis, prof, n=40, phase=0.0):
+    """A turned part: prof [(t along the axis, radius), ...] from p0 (radius 0 at an end closes it)."""
+    a, b1, b2 = _frame(axis); p0 = np.asarray(p0, float)
+    ang = np.linspace(0, 2 * math.pi, n, endpoint=False) + phase; ring = np.cos(ang)[:, None] * b1 + np.sin(ang)[:, None] * b2
+    V, F, rows = [], [], []
+    for t, r in prof:
+        if r < 1e-7:
+            rows.append([len(V)]); V.append(p0 + t * a)
+        else:
+            rows.append(list(range(len(V), len(V) + n))); V.extend(p0 + t * a + r * ring)
+    for r0, r1 in zip(rows[:-1], rows[1:]):
+        for k in range(n):
+            k2 = (k + 1) % n
+            if len(r0) == 1 and len(r1) > 1:
+                F.append([r0[0], r1[k2], r1[k]])
+            elif len(r1) == 1 and len(r0) > 1:
+                F.append([r0[k], r0[k2], r1[0]])
+            elif len(r0) > 1:
+                F += [[r0[k], r0[k2], r1[k2]], [r0[k], r1[k2], r1[k]]]
+    return np.array(V), np.array(F)
+
+
+def g_rrect(w, d, r, m=6):
+    """A rounded rectangle (w x d, corner radius r), counter-clockwise."""
+    r = min(r, w / 2 - 1e-4, d / 2 - 1e-4); P = []
+    for cx, cy, a0 in ((w / 2 - r, d / 2 - r, 0), (-w / 2 + r, d / 2 - r, 90), (-w / 2 + r, -d / 2 + r, 180), (w / 2 - r, -d / 2 + r, 270)):
+        for k in range(m + 1):
+            a = math.radians(a0 + 90 * k / m); P.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    return np.array(P)
+
+
+def g_sweep(path, sec, up=(0, 0, 1), caps=True):
+    """A tube: the 2D section sec (x along 'side', y along the path's normal toward up) carried along path."""
+    path = np.asarray(path, float); n = len(path); T = np.gradient(path, axis=0); T /= np.linalg.norm(T, axis=1)[:, None]
+    up = np.asarray(up, float); V, F = [], []; m = len(sec)
+    s = np.cross(T[0], up); s = s / np.linalg.norm(s) if np.linalg.norm(s) > 1e-6 else _frame(T[0])[1]
+    for i in range(n):
+        if i:
+            s = s - T[i] * (s @ T[i]); s /= np.linalg.norm(s)        # parallel transport
+        nn = np.cross(s, T[i])
+        V.extend(path[i] + sec[:, 0:1] * s + sec[:, 1:2] * nn)
+    for i in range(n - 1):
+        for k in range(m):
+            k2 = (k + 1) % m; a, b, c, d = i * m + k, i * m + k2, (i + 1) * m + k2, (i + 1) * m + k
+            F += [[a, b, c], [a, c, d]]
+    if caps:
+        for i, flip in ((0, True), (n - 1, False)):
+            ci = len(V); V.append(path[i])
+            for k in range(m):
+                k2 = (k + 1) % m; tri = [ci, i * m + k, i * m + k2]
+                F.append(tri[::-1] if flip else tri)
+    V = np.array(V); F = np.array(F)
+    return V, F
+
+
+def g_curve(pts, n=24):
+    """A smooth curve through pts (Catmull-Rom), about n points per span."""
+    P = np.asarray(pts, float); P = np.vstack([2 * P[0] - P[1], P, 2 * P[-1] - P[-2]]); out = []
+    for i in range(1, len(P) - 2):
+        p0, p1, p2, p3 = P[i - 1], P[i], P[i + 1], P[i + 2]
+        for t in np.linspace(0, 1, n, endpoint=False):
+            out.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3))
+    out.append(P[-2]); return np.array(out)
+
+
+def g_rbox(c, size, r, k=4):
+    """A box with rounded edges and corners (radius r), centred at c."""
+    h = np.array(size, float) / 2; r = min(r, *(h - 1e-4)); hi = h - r
+    def coords(hh, ii):
+        cur = [-hh + (hh - ii) * (1 - math.cos(math.pi / 2 * j / k)) for j in range(k + 1)]
+        return np.array(cur + [-c_ for c_ in cur[::-1]])
+    V, F = [], []
+    for ax in range(3):
+        o1, o2 = [a for a in range(3) if a != ax]
+        A, B = coords(h[o1], hi[o1]), coords(h[o2], hi[o2])
+        for sgn in (-1, 1):
+            base = len(V)
+            for a in A:
+                for b in B:
+                    p = np.zeros(3); p[ax] = sgn * h[ax]; p[o1] = a; p[o2] = b; V.append(p)
+            nb = len(B)
+            for i in range(len(A) - 1):
+                for j in range(nb - 1):
+                    q = [base + i * nb + j, base + (i + 1) * nb + j, base + (i + 1) * nb + j + 1, base + i * nb + j + 1]
+                    tri = [[q[0], q[1], q[2]], [q[0], q[2], q[3]]]
+                    if (sgn > 0) != ((ax == 1)):
+                        tri = [t[::-1] for t in tri]
+                    F += tri
+    V = np.array(V); inner = np.clip(V, -hi, hi); off = V - inner; ln = np.linalg.norm(off, axis=1)
+    V = inner + np.where(ln[:, None] > 1e-9, off / np.maximum(ln, 1e-9)[:, None] * r, 0)
+    key = np.round(V, 7); u, inv = np.unique(key, axis=0, return_inverse=True); inv = inv.ravel()
+    F = inv[np.array(F)]; F = F[(F[:, 0] != F[:, 1]) & (F[:, 1] != F[:, 2]) & (F[:, 0] != F[:, 2])]
+    return u + np.asarray(c, float), F
+
+
+def g_orient(v, f, R, t):
+    return np.asarray(v) @ np.asarray(R).T + t, f
+
+
+def g_split(v, f, angle=34.0):
+    """Split vertices where faces meet at more than angle degrees, so smooth vertex normals keep the edges sharp
+    (and turn the faces outward first)."""
+    v = np.asarray(v, float); f = np.asarray(f, int)
+    vol = np.einsum("ij,ij->i", v[f[:, 0]] - v.mean(0), np.cross(v[f[:, 1]] - v.mean(0), v[f[:, 2]] - v.mean(0))).sum()
+    if vol < 0:
+        f = f[:, ::-1]
+    fn = np.cross(v[f[:, 1]] - v[f[:, 0]], v[f[:, 2]] - v[f[:, 0]]); ln = np.linalg.norm(fn, axis=1); ok = ln > 1e-14
+    fn[ok] /= ln[ok][:, None]
+    nf = len(f); corner = np.arange(nf * 3).reshape(nf, 3); parent = np.arange(nf * 3)
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]; x = parent[x]
+        return x
+    edges = {}
+    for fi in range(nf):
+        for k in range(3):
+            a, b = f[fi, k], f[fi, (k + 1) % 3]; key = (a, b) if a < b else (b, a)
+            edges.setdefault(key, []).append((fi, k, (k + 1) % 3))
+    cos_t = math.cos(math.radians(angle))
+    for (a, b), lst in edges.items():
+        for i in range(len(lst)):
+            for j in range(i + 1, len(lst)):
+                f1, k1a, k1b = lst[i]; f2, k2a, k2b = lst[j]
+                if fn[f1] @ fn[f2] < cos_t:
+                    continue
+                for vert in (a, b):
+                    c1 = corner[f1, k1a] if f[f1, k1a] == vert else corner[f1, k1b]
+                    c2 = corner[f2, k2a] if f[f2, k2a] == vert else corner[f2, k2b]
+                    r1, r2 = find(c1), find(c2)
+                    if r1 != r2:
+                        parent[r1] = r2
+    roots = np.array([find(c) for c in range(nf * 3)])
+    u, inv = np.unique(roots, return_inverse=True)
+    return v[f.ravel()[u]], inv.reshape(nf, 3)
+
+
+def g_fillet(poly, rad, m=6):
+    """A polygon (counter-clockwise, 2D) with its corners rounded (rad: one radius, or one per corner)."""
+    P = np.asarray(poly, float); n = len(P); rad = [rad] * n if np.isscalar(rad) else rad; out = []
+    for i in range(n):
+        a, b, c = P[i - 1], P[i], P[(i + 1) % n]
+        d1 = (a - b) / np.linalg.norm(a - b); d2 = (c - b) / np.linalg.norm(c - b)
+        ang = math.acos(max(-1.0, min(1.0, d1 @ d2))); r = rad[i]
+        if r <= 0 or ang > math.pi - 1e-3:
+            out.append(b); continue
+        t = r / math.tan(ang / 2); t = min(t, 0.45 * np.linalg.norm(a - b), 0.45 * np.linalg.norm(c - b)); r = t * math.tan(ang / 2)
+        p1, p2 = b + d1 * t, b + d2 * t; bis = d1 + d2; bis /= np.linalg.norm(bis); cen = b + bis * (r / math.sin(ang / 2))
+        a1 = math.atan2(*(p1 - cen)[::-1]); a2 = math.atan2(*(p2 - cen)[::-1]); da = (a2 - a1 + math.pi) % (2 * math.pi) - math.pi
+        for k in range(m + 1):
+            out.append(cen + r * np.array([math.cos(a1 + da * k / m), math.sin(a1 + da * k / m)]))
+    return np.array(out)
+
+
+def g_earcut(P):
+    """Triangles of a simple counter-clockwise polygon (ear clipping)."""
+    idx = list(range(len(P))); T = []
+    cross = lambda o, a, b: (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    guard = 0
+    while len(idx) > 3 and guard < 20000:
+        guard += 1; n = len(idx)
+        for k in range(n):
+            i0, i1, i2 = idx[k - 1], idx[k], idx[(k + 1) % n]
+            a, b, c = P[i0], P[i1], P[i2]
+            if cross(a, b, c) <= 1e-12:
+                continue
+            if any(cross(a, b, P[j]) >= 0 and cross(b, c, P[j]) >= 0 and cross(c, a, P[j]) >= 0 for j in idx if j not in (i0, i1, i2)):
+                continue
+            T.append([i0, i1, i2]); idx.pop(k); break
+        else:
+            break
+    if len(idx) == 3:
+        T.append(idx)
+    return np.array(T)
+
+
+def g_slab(poly, y0, y1, bevel, to3):
+    """A plate: the polygon (2D, counter-clockwise) between y0 and y1, its edges bevelled; to3(p2d, y) -> 3D."""
+    P = np.asarray(poly, float); n = len(P)
+    nrm = np.zeros_like(P)
+    for i in range(n):
+        e1 = P[i] - P[i - 1]; e2 = P[(i + 1) % n] - P[i]
+        n1 = np.array([e1[1], -e1[0]]) / np.linalg.norm(e1); n2 = np.array([e2[1], -e2[0]]) / np.linalg.norm(e2)
+        v = n1 + n2; nrm[i] = v / max(np.linalg.norm(v), 1e-9)
+    inner = P - nrm * bevel
+    rings = [(inner, y0), (P, y0 + bevel), (P, y1 - bevel), (inner, y1)]
+    V = []; F = []
+    for pts, y in rings:
+        V.extend(to3(p, y) for p in pts)
+    for r in range(3):
+        for k in range(n):
+            k2 = (k + 1) % n; a, b, c, d = r * n + k, r * n + k2, (r + 1) * n + k2, (r + 1) * n + k
+            F += [[a, b, c], [a, c, d]]
+    tri = g_earcut(inner)
+    F += [[t[0], t[2], t[1]] for t in tri] + [[3 * n + t[0], 3 * n + t[1], 3 * n + t[2]] for t in tri]
+    return np.array(V), np.array(F)
+
+
+def gun_geometry():
+    """The gun as [(group, material, vertices, faces)], group "fixed" or "moving" (the moving electrode's slide: it
+    backs off by up to GUN_OPEN along -x); robot frame at zero angles, the gun closed. An X-type servo gun: a machined
+    aluminium body on the flange, the two electrode arms hanging from it (brass holders, copper shanks bent toward
+    each other, the caps meeting at the contact point), the servo actuator on the body's side, the transformer on top."""
+    X = np.array([1.0, 0, 0]); Z = [0, 0, 1]; out = []
+    def add(grp, mat, vf):
+        out.append((grp, mat, np.asarray(vf[0], float), np.asarray(vf[1], int)))
+    L = lambda u, prof, n=40, y=0.0, h=0.0, ph=0.0: g_lathe(_g(u, y, h), X, prof, n, ph)
+    Lz = lambda u, y, h, prof, n=24, ph=0.0: g_lathe(_g(u, y, h), Z, prof, n, ph)
+    Ly = lambda u, y, h, sgn, prof, n=24, ph=0.0: g_lathe(_g(u, y, h), [0, sgn, 0], prof, n, ph)
+    circ = lambda r, n=16: np.c_[r * np.cos(np.linspace(0, 2 * math.pi, n, endpoint=False)), r * np.sin(np.linspace(0, 2 * math.pi, n, endpoint=False))]
+    hexb = lambda r=0.0075: [(0, 0), (0, r), (0.006, r), (0.007, r * 0.8), (0.007, 0)]
+    to3 = lambda p, y: _g(p[0], y, p[1])
+    TB = 0.04                                                                  # half the body's thickness
+    # -- the tool changer on the flange: a turned adapter with its bolt circle
+    add("fixed", "steel", L(0.0, [(0, 0), (0, 0.098), (0.004, 0.1), (0.022, 0.1), (0.026, 0.095), (0.032, 0.095), (0.032, 0)], 48))
+    for k in range(8):
+        a = 2 * math.pi * (k + 0.5) / 8
+        add("fixed", "chrome", L(0.032, hexb(), 6, 0.08 * math.cos(a), 0.08 * math.sin(a), math.pi / 6))
+    # -- the body: a machined aluminium plate, with a mounting block to the flange
+    body = g_fillet([(0.05, -0.095), (0.17, -0.095), (0.25, 0.24), (0.61, 0.24), (0.655, 0.3), (0.61, 0.38), (0.05, 0.38)],
+                    [0.02, 0.06, 0.05, 0.03, 0.04, 0.05, 0.03])
+    add("fixed", "alu", g_slab(body, -TB, TB, 0.005, to3))
+    pad = g_fillet([(0.27, 0.265), (0.6, 0.265), (0.622, 0.3), (0.595, 0.355), (0.27, 0.355)], 0.02)
+    for sy in (-1, 1):                                                      # raised machined pads on the faces
+        add("fixed", "alu", g_slab(pad, sy * TB - 0.002 if sy > 0 else -TB - 0.006, sy * TB + 0.006 if sy > 0 else -TB + 0.002, 0.002, to3))
+    add("fixed", "steel", g_rbox(_g(0.041, 0, 0.0), [0.018, 0.2, 0.2], 0.008))                 # the bracket plate on the flange
+    for sy in (-1, 1):
+        gus = g_fillet([(0.05, -0.09), (0.12, -0.09), (0.05, 0.09)], 0.006)
+        add("fixed", "steel", g_slab(gus, sy * TB if sy > 0 else -TB - 0.012, sy * TB + 0.012 if sy > 0 else -TB, 0.002, to3))
+    # bolt heads, dowel holes and a hole circle on both faces (as the machined plate has them)
+    bolts = [(0.07, 0.355), (0.13, 0.355), (0.2, 0.355), (0.07, 0.29), (0.07, 0.06), (0.11, -0.07), (0.3, 0.275), (0.38, 0.275),
+             (0.56, 0.275), (0.6, 0.35), (0.5, 0.36), (0.62, 0.31)]
+    holes = [(0.27, 0.34), (0.33, 0.36), (0.12, 0.2), (0.16, 0.13), (0.45, 0.29)]
+    for sy in (-1, 1):
+        for u, h in bolts:
+            add("fixed", "chrome", Ly(u, sy * TB, h, sy, hexb(0.0085), 6, math.pi / 6))
+        for u, h in holes:
+            add("fixed", "insul", Ly(u, sy * (TB + 0.0004), h, sy, [(0, 0), (0, 0.0065), (0.0006, 0.0065), (0.0006, 0)], 20))
+        for k in range(10):
+            a = 2 * math.pi * k / 10
+            add("fixed", "insul", Ly(0.43 + 0.032 * math.cos(a), sy * (TB + 0.0004), 0.31 + 0.032 * math.sin(a), sy, [(0, 0), (0, 0.004), (0.0006, 0.004), (0.0006, 0)], 14))
+        add("fixed", "label", g_rbox(_g(0.53, sy * (TB + 0.0006), 0.33), [0.05, 0.0012, 0.03], 0.0005))
+    add("fixed", "paper", g_rbox(_g(0.36, TB + 0.0006, 0.367), [0.07, 0.0012, 0.022], 0.0005))      # the barcode label
+    add("fixed", "insul", g_rbox(_g(0.36, TB + 0.0012, 0.367), [0.05, 0.0012, 0.012], 0.0003))
+    # -- the guide under the body the moving arm runs on, the fixed arm's seat
+    add("fixed", "steel", g_rbox(_g(0.36, 0, 0.228), [0.2, 0.05, 0.026], 0.006))
+    add("fixed", "steel", g_rbox(_g(0.53, 0, 0.222), [0.07, 0.09, 0.04], 0.008))
+    # -- the arms: brass holders bolted to their seats, the copper shanks bent toward each other, the caps
+    def arm(grp, uh, sgn):
+        """An arm hanging at u = uh, its shank bending toward the contact point (sgn: +1 from the robot side)."""
+        add(grp, "brass", g_rbox(_g(uh, 0, 0.16), [0.05, 0.062, 0.1], 0.008))
+        add(grp, "brass", g_rbox(_g(uh, 0, 0.205), [0.064, 0.074, 0.03], 0.008))
+        for du in (-0.013, 0.013):
+            for h in (0.13, 0.18):
+                add(grp, "chrome", Ly(uh + du, 0.031, h, 1, hexb(0.006), 6, math.pi / 6))
+                add(grp, "chrome", Ly(uh + du, -0.031, h, -1, hexb(0.006), 6, math.pi / 6))
+        tip = GUN_K[0] - GUN_FLANGE[0] - sgn * 0.0135
+        sh = g_curve([_g(uh, 0, 0.115), _g(uh, 0, 0.06), _g(uh + sgn * 0.012, 0, 0.012), _g(tip - sgn * 0.02, 0, 0.0)], 14)
+        add(grp, "copper", g_sweep(sh, circ(0.0135, 28)))
+        add(grp, "copper", g_lathe(_g(tip - sgn * 0.021, 0, 0), [sgn, 0, 0], [(0, 0), (0, 0.0135), (0.009, 0.0135), (0.012, 0.011), (0.012, 0)], 28))
+        add(grp, "cap", g_lathe(_g(tip - sgn * 0.009, 0, 0), [sgn, 0, 0], [(0, 0), (0, 0.0105), (0.005, 0.0105), (0.0085, 0.0085), (0.0098, 0.006), (0.0105, 0.003), (0.0108, 0)], 28))
+        for sy in (-1, 1):                                                     # the cooling hose fittings
+            add(grp, "chrome", Ly(uh + sgn * 0.012, sy * 0.031, 0.13, sy, [(0, 0), (0, 0.006), (0.012, 0.006), (0.014, 0.0045), (0.014, 0)], 6, math.pi / 6))
+    UM, UF = 0.37, 0.535
+    arm("moving", UM, 1)
+    add("moving", "steel", g_rbox(_g(UM, 0, 0.228), [0.07, 0.07, 0.034], 0.007))             # the carriage
+    arm("fixed", UF, -1)
+    # -- the servo actuator on the body's side driving the carriage: motor, cylinder, rod, the rod's bracket
+    YA = -(TB + 0.048); HA = 0.31
+    add("fixed", "motor", g_rbox(_g(0.13, YA, HA), [0.11, 0.09, 0.09], 0.014))
+    for k in range(4):
+        add("fixed", "motor", g_rbox(_g(0.095 + k * 0.022, YA, HA), [0.006, 0.098, 0.098], 0.014))
+    add("fixed", "steel", L(0.185, [(0, 0), (0, 0.047), (0.014, 0.047), (0.014, 0)], 36, YA, HA))
+    add("fixed", "alu", L(0.199, [(0, 0), (0, 0.04), (0.11, 0.04), (0.114, 0.036), (0.114, 0)], 36, YA, HA))
+    add("fixed", "steel", g_rbox(_g(0.3, (YA + -TB) / 2, HA), [0.03, abs(YA + TB) + 0.04, 0.07], 0.006))   # its nose bracket on the body
+    add("moving", "chrome", L(0.313, [(0, 0), (0, 0.014), (0.06, 0.014), (0.06, 0)], 24, YA, HA))
+    add("moving", "steel", g_rbox(_g(UM, (YA - 0.035) / 2 + 0.01, 0.262), [0.04, abs(YA) + 0.0, 0.03], 0.006))  # rod end to the carriage
+    add("moving", "steel", g_rbox(_g(0.36, YA, HA), [0.03, 0.04, 0.05], 0.006))
+    add("moving", "steel", g_rbox(_g(UM, YA, (HA + 0.262) / 2), [0.03, 0.03, HA - 0.262 + 0.03], 0.006))
+    # -- the transformer on top, the shunts down to the arms, the dress of cables and cooling hoses
+    add("fixed", "transformer", g_rbox(_g(0.17, 0, 0.415), [0.24, 0.11, 0.07], 0.012))
+    for k in range(7):
+        add("fixed", "transformer", g_rbox(_g(0.075 + k * 0.032, 0, 0.455), [0.008, 0.09, 0.014], 0.003))
+    add("fixed", "label", g_rbox(_g(0.2, 0.0555, 0.415), [0.07, 0.0012, 0.035], 0.0005))
+    add("fixed", "steel", g_rbox(_g(0.33, 0, 0.405), [0.06, 0.08, 0.05], 0.01))               # cable junction box
+    for k, (col, dy) in enumerate((("wire_green", -0.03), ("cable", -0.01), ("wire_red", 0.01), ("cable", 0.03))):
+        p = g_curve([_g(0.36, dy, 0.42), _g(0.375, dy * 1.2, 0.46), _g(0.3, dy * 1.4, 0.475), _g(0.06, dy * 1.4, 0.475), _g(0.015, dy * 1.4, 0.44), _g(0.02, dy, 0.39)], 10)
+        add("fixed", col, g_sweep(p, circ(0.0075, 12)))
+    for sy, grp, uh, sg in ((1, "moving", UM, 1), (-1, "moving", UM, 1), (1, "fixed", UF, -1), (-1, "fixed", UF, -1)):
+        u0 = uh + sg * 0.012; ut = uh - sg * 0.03
+        if grp == "moving":                                                    # (to the carriage: it moves with it)
+            p = g_curve([_g(u0, sy * 0.045, 0.13), _g(u0, sy * 0.062, 0.18), _g(uh - 0.02, sy * 0.05, 0.214), _g(uh - 0.02, sy * 0.036, 0.226)], 12)
+        else:
+            p = g_curve([_g(u0, sy * 0.045, 0.13), _g(u0 + sg * 0.004, sy * 0.062, 0.19), _g(ut, sy * 0.06, 0.26), _g(ut, sy * 0.054, 0.3)], 12)
+        add(grp, "hose_green", g_sweep(p, circ(0.0055, 12)))
+    for sy in (-1, 1):
+        for u in (UF + 0.03,):
+            add("fixed", "brass", Ly(u, sy * (TB + 0.006), 0.31, sy, [(0, 0), (0, 0.008), (0.012, 0.008), (0.014, 0.006), (0.014, 0)], 6, math.pi / 6))
+    return out
 
 
 def gun_meshes():
-    """The C-gun's parts (as the Welding cell model draws it), closed: [(moving?, vertices, faces)]."""
-    K = GUN_K; zb = K[2] + 0.25; xf = K[0] + 0.004; xm = K[0] - 0.004
-    fixed = [_gbox([1.915, 0, 1.97], [0.25, 0.22, 0.30]), _gbox([1.80, 0, 1.97], [0.03, 0.26, 0.34]), _gbox([2.32, 0, zb + 0.04], [0.20, 0.13, 0.11]),
-             _gcyl([2.00, 0, zb + 0.14], [2.42, 0, zb + 0.14], 0.05, n=20), _gcyl([2.42, 0, zb + 0.14], [2.45, 0, zb + 0.14], 0.035),
-             _gcyl([K[0] + 0.09, 0, K[2]], [K[0] + 0.09, 0, zb], 0.024), _gcyl([K[0] + 0.09, 0, K[2]], [xf + 0.02, 0, K[2]], 0.016),
-             _gcyl([xf + 0.02, 0, K[2]], [xf, 0, K[2]], 0.009, 0.005)]
-    moving = [_gcyl([K[0] - 0.09, 0, K[2]], [K[0] - 0.09, 0, zb + 0.03], 0.024), _gcyl([K[0] - 0.09, 0, K[2]], [xm - 0.02, 0, K[2]], 0.016),
-              _gbox([K[0] - 0.09, 0, zb + 0.06], [0.07, 0.11, 0.07]), _gcyl([xm - 0.02, 0, K[2]], [xm, 0, K[2]], 0.009, 0.005)]
-    return [(False, v, f) for v, f in fixed] + [(True, v, f) for v, f in moving]
+    """The spot gun's parts (as the Welding cell model draws it), closed: [(moving?, vertices, faces)]."""
+    return [(grp == "moving", v, f) for grp, mat, v, f in gun_geometry()]
 
 
 def fk_tool(q, R0, T0):
@@ -420,7 +710,7 @@ class SpotCell:
         return [q0 + (q1 - q0) * (s * s * s * (10 - 15 * s + 6 * s * s)) for s in (k / n for k in range(1, n + 1))]
 
     def path_ok(self, r, path):
-        return all(self.ok(r, q) for q in path[::3] + [path[-1]])
+        return all(self.ok(r, q) for q in path[:8] + path[8:-8:3] + path[-8:])   # (every frame near the ends, close to the car)
 
     def pose(self, r, p, Rt, seed):
         q, ok = ik_tool(r["Rb"].T @ Rt, r["Rb"].T @ (p - r["base"]), seed, GUN_R0, GUN_K)
@@ -472,19 +762,18 @@ class SpotCell:
                 if qa is None or qo is None:
                     continue
                 way = self.linear(r, po, pa, Rt, qo, 0.7); way += self.linear(r, pa, ps, Rt, way[-1] if way else qa, 0.6)
-                g = min([self.clear(r, qq)[1] for qq in way[::2]] or [0.0])
+                g = min([self.clear(r, qq)[1] for qq in way] or [0.0])        # (every frame: the way out is the same, backwards)
                 if choice is None or g > choice[0]:
-                    choice = (g, pa, po, qa, qo)
+                    choice = (g, pa, po, qa, qo, way)
                 if g > 0.008:
                     break
             if choice is None:
                 self.fails.append((r["name"], "spot")); continue
-            g, pa, po, qa, qo = choice
+            g, pa, po, qa, qo, way = choice
             if g < SPOT_CLEAR_GUN:
                 self.fails.append((r["name"], "spot %d mm" % round(g * 1000)))
             add(self.go(r, q, qo, self.routes(r, q, out_prev, qo, (po, n, Rt))), GUN_OPEN, 0); q = qo   # to 30 cm out
-            path = self.linear(r, po, pa, Rt, q, 0.7); add(path, GUN_OPEN, 0); q = path[-1] if path else q   # straight in
-            path = self.linear(r, pa, ps, Rt, q, 0.6); add(path, GUN_OPEN, 0); q = path[-1] if path else q   # on over the edge
+            add(way, GUN_OPEN, 0); q = way[-1] if way else q                         # straight in, on over the edge
             path = self.linear(r, ps, p, Rt, q, 0.15); add(path, GUN_OPEN, 0); q = path[-1] if path else q   # touch
             for k in range(1, 6):
                 add([q], GUN_OPEN * (1 - k / 5), 0)                                     # close (0.25 s)
@@ -494,8 +783,7 @@ class SpotCell:
             for k in range(1, 6):
                 add([q], GUN_OPEN * k / 5, 0)                                            # open
             path = self.linear(r, p, ps, Rt, q, 0.15); add(path, GUN_OPEN, 0); q = path[-1] if path else q
-            path = self.linear(r, ps, pa, Rt, q, 0.5); add(path, GUN_OPEN, 0); q = path[-1] if path else q   # off the edge
-            path = self.linear(r, pa, po, Rt, q, 0.6); add(path, GUN_OPEN, 0); q = path[-1] if path else q   # straight out
+            back_out = way[::-1][1:] + [qo]; add(back_out, GUN_OPEN, 0); q = qo      # off the edge, straight out (the way in, backwards)
             out_prev = (po, n, Rt)
         add(self.go(r, q, r["home"], self.routes(r, q, out_prev, r["home"], None)), GUN_OPEN, 0)   # home
         return F
@@ -512,11 +800,19 @@ class SpotCell:
         return best
 
 
+PARK_X = 200.0                          # m: where a sled not in use waits, far out of sight
+
+
 class Line:
-    """The line between cars: which sled is in the MIG cell, the car in the spot cell, the spot robots."""
+    """The line between cars. Three sleds take turns: one in the MIG cell (A), one in the spot cell (B), and a third
+    (C) that takes the finished car out through the exit door and then, behind the closed doors, comes round to wait at
+    the entry with the next car. At a handover the three move together: B's car goes out, A's moves on into the spot
+    cell, C's comes in, all in one move of the same length (the cells and the doors are 11 m apart)."""
     def __init__(self, spot):
-        self.spot = spot; self.chain_a = 0; self.a = None; self.b = None
-        self.b_pose = [EXIT_WORLD, 0.0, CAR_Z, 0.0, 0.0, 0.0]                        # (the second sled waits outside at first)
+        self.spot = spot; self.chain_a, self.chain_b, self.chain_c = 0, 1, 2; self.a = None; self.b = None
+        self.b_pose = [PARK_X, 0.0, CAR_Z, 0.0, 0.0, 0.0]                           # (out of sight until a car gets there)
+        self.c_pose = [PARK_X + 10, 0.0, CAR_Z, 0.0, 0.0, 0.0]
+        self.c_out = False                                                          # C has a finished car outside the exit
         self.k = None; self.done = [0] * 4
         self.q = [r["home"].copy() for r in spot.R] if spot else []; self.gun = [GUN_OPEN] * 4; self.arc = [0] * 4
 
@@ -538,11 +834,16 @@ class Line:
         if self.k >= self.spot.length:
             self.k = None; self.arc = [0] * 4
 
+    def rotate(self):
+        """At a handover: A's sled goes on to B, B's out (C), C's (waiting at the entry) into A."""
+        self.chain_a, self.chain_b, self.chain_c = self.chain_c, self.chain_a, self.chain_b
+
     def fields(self):
         f = [self.chain_a] + [round(v, 5) for v in self.b_pose]
         for q in self.q:
             f += [round(float(x), 2) for x in np.degrees(q)]
-        return f + [round(g, 4) for g in self.gun] + list(self.arc) + list(self.done)   # f[53] .. f[95]
+        f += [round(g, 4) for g in self.gun] + list(self.arc) + list(self.done)        # f[53] .. f[95]
+        return f + [self.chain_b, self.chain_c] + [round(v, 5) for v in self.c_pose]   # f[96], f[97], f[98] .. f[103]
 
 
 LINE = None                 # the line's state from car to car
@@ -809,15 +1110,17 @@ class CarRun:
         self.q = [r["home"].copy() for r in robots]
         self.state = [0] * 4; self.seam = [-1] * 4; self.prog = [0.0] * 4; self.werr = [0.0] * 4; self.laser = [0] * 4
         self.door = [0.0, 0.0]; self.door_to = [0.0, 0.0]          # the way in, the way out: how far each door is up
-        self.line = LINE; self.a_over = None                          # the line (spot cell, the other car); a car in the MIG cell's place
+        if LINE is not None:                                          # (on a line the doors stay as the car before left them)
+            if not hasattr(LINE, "door"):
+                LINE.door, LINE.door_to = [0.0, 0.0], [0.0, 0.0]
+            self.door, self.door_to = LINE.door, LINE.door_to
+        self.line = LINE                                              # the line (the spot cell, the other cars)
         self.car_x = ENTRY_X
         self.est = (np.eye(3), np.array([STOP_X, 0, CAR_Z])); self.localised = False
         self._last_sensor = [-1.0] * 4
 
     # --- car pose
     def car_true(self):
-        if self.a_over is not None:                                # (the car before this one, moving on to the spot cell)
-            return self.a_over
         return self.Rc, np.array([self.car_x, 0, CAR_Z]) + self.dp
 
     def seam_true(self, i, k):
@@ -840,8 +1143,11 @@ class CarRun:
             for k in (0, 1):                                  # the doors move toward where they are sent
                 st = DOOR_V * self.DT; self.door[k] += max(-st, min(st, self.door_to[k] - self.door[k]))
             f += [round(self.door[0], 3), round(self.door[1], 3)]   # f[51], f[52]
-            if self.line is not None:                         # the spot cell: f[53] (which sled is in the MIG cell) .. f[95]
-                self.line.step(); f += self.line.fields()
+            if self.line is not None:                         # the spot cell: f[53] (which sled is in the MIG cell) .. f[103]
+                L = self.line
+                if (L.c_out or L.c_pose[0] >= PARK_X) and self.door[0] < 1e-6 and self.door[1] < 1e-6 and self.car_x > ENTRY_X + 1.0:
+                    L.c_pose = [CELL_A_X + ENTRY_X, 0.0, CAR_Z, 0.0, 0.0, 0.0]; L.c_out = False   # (behind the closed doors)
+                L.step(); f += L.fields()
             self.frames.append(f); self.t += self.DT
 
     def event(self, text):
@@ -1195,29 +1501,40 @@ class CarRun:
         return True
 
     def run(self):
-        self.emit()
         L = self.line
-        if L is not None and L.b is not None:                  # the car in the spot cell leaves through the exit door
-            self.event("Car %d leaves" % L.b)
-            self.open_door(1)
-            def at_b(x, s):
-                L.b_pose[0] = x
-            self.slide(L.b_pose[0], EXIT_WORLD, at_b)
-            self.door_to[1] = 0.0; L.b = None
-        if L is not None and L.a is not None:                  # the car in the MIG cell moves on into the spot cell
-            no, Rc0, pc0 = L.a
-            self.event("Car %d moves on to the spot welding cell" % no)
+        self.car_x = ENTRY_X
+        if L is not None and L.a is not None:                  # the handover: all three cars move at once
+            no_a, Rc0, pc0 = L.a; no_b = L.b
+            L.rotate()                                         # (the car waiting at the entry is this one: on sled A now)
+            L.c_pose = list(L.b_pose); L.b_pose = [pc0[0] + CELL_A_X, pc0[1], pc0[2], 0.0, 0.0, 0.0]
+            self.emit()
+            self.door_to[0] = DOOR_H                           # (both already up or on their way: opened as the cells finished)
+            if no_b is not None:
+                self.door_to[1] = DOOR_H
+            while self.door[0] < DOOR_H - 1e-6 or (no_b is not None and self.door[1] < DOOR_H - 1e-6):
+                self.emit()
+            self.event(("Car %d leaves, car %d moves on to the spot welding cell, car %d comes in" % (no_b, no_a, self.no)) if no_b is not None
+                       else "Car %d moves on to the spot welding cell, car %d comes in" % (no_a, self.no))
             ang0 = np.array([math.atan2(Rc0[1, 0], Rc0[0, 0]), -math.asin(max(-1, min(1, Rc0[2, 0]))), math.atan2(Rc0[2, 1], Rc0[2, 2])])
-            def at_a(x, s):
-                a = ang0 * (1 - s); self.a_over = (rpy(a[2], a[1], a[0]), np.array([x, pc0[1] * (1 - s), CAR_Z + (pc0[2] - CAR_Z) * (1 - s)]))
-            self.slide(pc0[0], CELL_B_X - CELL_A_X, at_a)
-            L.b = no; L.b_pose = [CELL_B_X, 0.0, CAR_Z, 0.0, 0.0, 0.0]; L.chain_a = 1 - L.chain_a; L.a = None
-            self.event("Spot welding cell: car %d on the locating pins" % no)
-        self.a_over = None; self.car_x = ENTRY_X
-        self.event("Car %d waits at the door" % self.no)
-        self.open_door(0)
-        self.move_car(ENTRY_X, STOP_X, text="Car %d comes in" % self.no)
-        self.door_to[0] = 0.0                                  # it closes behind the car while the work goes on
+            xa0, xb0, xc0 = pc0[0] + CELL_A_X, CELL_B_X, L.c_pose[0]
+            dist = STOP_X - ENTRY_X                            # (11 m: entry to the MIG cell, MIG cell to spot cell, spot cell to exit)
+            def at(x, s):
+                self.car_x = ENTRY_X + dist * s
+                a = ang0 * (1 - s)
+                L.b_pose = [xa0 + (CELL_B_X - xa0) * s, pc0[1] * (1 - s), CAR_Z + (pc0[2] - CAR_Z) * (1 - s), float(a[0]), float(a[1]), float(a[2])]
+                if no_b is not None:
+                    L.c_pose = [xb0 + (EXIT_WORLD - xb0) * s, 0.0, CAR_Z, 0.0, 0.0, 0.0]
+            self.slide(0.0, dist, at)
+            L.b = no_a; L.b_pose = [CELL_B_X, 0.0, CAR_Z, 0.0, 0.0, 0.0]; L.a = None
+            L.c_out = no_b is not None
+            self.door_to = [0.0, 0.0]                          # both close behind the cars while the work goes on
+            self.event("Spot welding cell: car %d on the locating pins" % no_a)
+        else:
+            self.emit()
+            self.event("Car %d waits at the door" % self.no)
+            self.open_door(0)
+            self.move_car(ENTRY_X, STOP_X, text="Car %d comes in" % self.no)
+            self.door_to[0] = 0.0                              # it closes behind the car while the work goes on
         self.event("Sled stopped; car clamped")
         if L is not None:
             L.start()
@@ -1255,13 +1572,15 @@ class CarRun:
                 self.event("No collisions: the robots kept %.1f mm from the car and %.0f mm from each other" % (clr["car_clear_mm"], clr["robot_clear_mm"]))
         [self.emit() for _ in range(int(0.6 / self.DT))]
         if L is not None:                                      # the spot cell finishes its car; this one stays for the next
+            self.door_to[0] = DOOR_H                           # the doors open now, while the spot cell finishes: the
+            if L.b is not None:                                # handover starts as soon as both cells are done
+                self.door_to[1] = DOOR_H
+            if L.busy():
+                self.event("Doors opening; the spot welding cell finishes car %d" % L.b)
             while L.busy():
                 self.emit()
             if L.b is not None and L.spot is not None:
                 self.event("Car %d spot welded: %d spots" % (L.b, sum(L.done)))
-            self.door_to = [0.0, 0.0]
-            while self.door[0] > 1e-6 or self.door[1] > 1e-6:
-                self.emit()
             L.a = (self.no,) + tuple(self.car_true())
         else:
             self.open_door(1)
@@ -1473,7 +1792,8 @@ class LiveRobot:
     the weld beads (each piece of a seam rises from under the floor onto its car as the torch passes it, and stays there
     until that car is out of the line), the spot marks (likewise, as each spot is welded), the arcs (a glow while a
     robot welds), the guns (how far open) and the doors. Frames hold the car in the MIG cell (in its frame), which sled
-    it is on (f[53]), the other car (f[54:60], on the rail), the spot robots and their guns (f[60:96])."""
+    it is on (f[53]), the car in the spot cell (f[54:60], on the rail), the spot robots and their guns (f[60:96]), the
+    sleds of the spot cell and of the third car (f[96], f[97]) and where the third is (f[98:104])."""
     FAR = 1000.0
 
     def __init__(self, robots, which, model=None):
@@ -1523,7 +1843,7 @@ class LiveRobot:
                 if i in self.show:
                     continue
                 b = r["base"]; self.static.append(dict(kind="box", center=[float(b[0]), float(b[1]), float(b[2]) / 2], size=[0.9, 0.9, float(b[2])], color="#4a4f57"))
-        self.welded = {}; self.marked = {}; self.clear = {}; self.sent = 0; self.chain_a = None
+        self.welded = {}; self.marked = {}; self.clear = {}; self.sent = 0; self.chain_a = None; self.fresh = set()
 
     def reset(self):
         """(A new car to play: what it changes on the line, a new car on a sled, is seen in its frames.)"""
@@ -1531,11 +1851,19 @@ class LiveRobot:
     def _chain_a(self, f):
         return int(f[53]) if len(f) > 95 and len(self.chains) > 1 else 0
 
+    def _chain_b(self, f):
+        return int(f[96]) if len(f) > 103 else 1 - self._chain_a(f)
+
     def named(self, f):
         d = {}
         ca = self._chain_a(f)
         if ca != self.chain_a:                                 # a new car on this sled: its seams and its spots bare
             self.chain_a = ca; self.welded[ca] = set(); self.marked[ca] = set(); self.clear[ca] = 3
+        if len(f) > 103:                                       # the sled come round to the entry: a new car on it, bare
+            cc = int(f[97])
+            if f[98] < -13.0 and cc not in self.fresh:
+                self.welded[cc] = set(); self.marked[cc] = set(); self.clear[cc] = 3; self.fresh.add(cc)
+            self.fresh &= {cc}
         for c in list(self.clear):
             if self.clear[c] > 0:                              # (sent a few times, in case one is missed)
                 self.clear[c] -= 1
@@ -1552,7 +1880,7 @@ class LiveRobot:
                 if j not in wa and (f[31 + i] == 3 or f[39 + i] >= 1.0) and s_end <= done + 0.004:
                     wa.add(j); new.append(j)
         if len(f) > 95 and len(self.chains) > 1:
-            cb = 1 - ca; mb = self.marked.setdefault(cb, set())
+            cb = self._chain_b(f); mb = self.marked.setdefault(cb, set())
             for i in range(4):
                 for kk, j in self.marks.get((cb, i), []):
                     if kk < int(f[92 + i]) and j not in mb:
@@ -1575,12 +1903,14 @@ class LiveRobot:
         return d
 
     def joints(self, f):
-        ca = self._chain_a(f); car = {}
+        ca = self._chain_a(f); cb = self._chain_b(f); car = {}
         for c, ch in enumerate(self.chains):
             if c == ca:
                 x, y, yaw = f[1] + self.xa, f[2], f[4]
-            else:
+            elif c == cb:
                 x, y, yaw = (f[54], f[55], f[57]) if len(f) > 95 else (EXIT_WORLD, 0.0, 0.0)
+            else:
+                x, y, yaw = (f[98], f[99], f[101]) if len(f) > 103 else (PARK_X, 0.0, 0.0)
             a = math.degrees(math.asin(x / self.FAR)); b = math.degrees(math.asin(-y / self.FAR)); cc = math.degrees(yaw)
             car.update({ch + ":x": round(a, 10), ch + ":y": round(b, 10), ch + ":yaw": round(cc, 6), ch + ":-yaw": round(-cc, 6), ch + ":-y": round(-b, 10), ch + ":-x": round(-a, 10)})
         if not self.layout:
