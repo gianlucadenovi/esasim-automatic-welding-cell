@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell model (ws-welding-robot-model) · version 8 · machine block, Python: def run(ctx)
+# Welding cell model (ws-welding-robot-model) · version 9 · machine block, Python: def run(ctx)
 # The welding cell for EsaSim's 3D view: the four KUKA KR 210 robots with their swan-neck torches and the car body frame on its sled, one model with each part in its own material.
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -72,13 +72,26 @@ BOXES = {"base": ([0, 0.06, 0.17], [1.0, 1.1, 0.4], "#2a2c30"), "a1": ([0.02, 0.
 
 
 CAR_MAT = ("#c4c7cb", 1.0, 0.32)       # satin silver steel (reflects the cell through the cube map of a view that has one)
-HALL = {"x": [-13.0, 13.0], "y": [-7.5, 7.5], "height": 8.0}   # the hall around the cell (walls, roof, lamps: drawn by the view)
+DOOR_W, DOOR_HT = 3.6, 3.2              # the roll-up doors in the end walls (the car comes in at x = -13 and leaves at 13)
+HALL = {"x": [-13.0, 13.0], "y": [-7.5, 7.5], "height": 8.0,   # the hall around the cell (walls, roof, lamps: drawn by the view)
+        "doors": [{"x": -13.0, "y": 0.0, "w": DOOR_W, "h": DOOR_HT}, {"x": 13.0, "y": 0.0, "w": DOOR_W, "h": DOOR_HT}],
+        "apron": 9.0, "logo": "EsaSim"}
 RAIL_MAT = ("#b3141c", 0.65, 0.2)      # the rail: a red I-beam, glossy
 SLED_MAT = ("#2b2f36", 0.6, 0.4)
 BASE_MAT = ("#1b1c1f", 0.35, 0.55)     # the robots' bases: black painted steel
 BOLT_MAT = ("#8a8f96", 0.95, 0.28)
 PLATE_MAT = ("#3a3d42", 0.8, 0.45)
 BEAD_MAT = ("#3a332d", 0.3, 0.7)       # a weld bead: dark, heat-tinted steel
+GRID_MAT = ("#858b92", 0.9, 0.38)      # the floor grating under the car: galvanised steel
+CAB_MAT = ("#c9ccc8", 0.2, 0.5)        # the control cabinets: light grey (RAL 7035) sheet steel
+CAB_DOOR = ("#bfc3bf", 0.2, 0.45)
+CAB_DARK = ("#1c1e21", 0.3, 0.6)       # plinth, handle, panel frame
+CABLE_MAT = ("#121314", 0.0, 0.5)      # black cable jacket
+PLUG_MAT = ("#b4b9bf", 0.95, 0.22)     # the metal connectors
+STRIPE_MAT = ("#f2c200", 0.0, 0.6)     # yellow floor marking
+DOOR_MAT = ("#8b939c", 0.75, 0.38)     # the doors' steel slats
+FRAME_MAT = ("#2e3136", 0.6, 0.45)     # door guides and housing
+LAMP_GREEN, LAMP_AMBER, SCREEN = ("#39ff6e", 0.0, 0.3), ("#ffb020", 0.0, 0.3), ("#4fa8ff", 0.0, 0.3)   # (drawn glowing)
 ARC_MAT = ("#fff1b8", 0.0, 0.2)        # the arc's glow at the wire
 HIDE = 5.0                             # m: weld beads wait this far below the car (under the floor) until they are welded
 SEG = 2                                # seam intervals (about 2 cm each) per bead segment
@@ -134,14 +147,14 @@ def cyl_mesh(r, z0, h, x, y, sections=6):
 
 def rail_mesh():
     """The rail: one I-beam along the cell (top at 0.32 m), standing on plates bolted to the floor every 1.5 m."""
-    L = 24.0; P = 0.02                                            # the beam stands on plates 20 mm thick
+    L = 42.0; P = 0.02                                            # the beam runs out through both doors; it stands on plates 20 mm thick
     parts = [box_mesh([0, 0, P + 0.0125], [L, 0.22, 0.025]), box_mesh([0, 0, (P + 0.025 + 0.295) / 2], [L, 0.02, 0.295 - P - 0.025]),
              box_mesh([0, 0, 0.3075], [L, 0.22, 0.025])]
     plates, bolts = [], []
-    for x in np.arange(-11, 11.01, 1.5):                          # a plate every 1.5 m, bolted to the floor on both sides of the beam
-        plates.append(box_mesh([x, 0, P / 2], [0.36, 0.5, P]))
-        for dx in (-0.12, 0.12):
-            for dy in (-0.19, 0.19):
+    for x in np.arange(-20, 20.01, 1.5):                          # a plate every 1.5 m, bolted to the floor on both sides of the beam
+        plates.append(box_mesh([x, 0, P / 2], [0.6, 0.9, P]))
+        for dx in (-0.22, 0.22):
+            for dy in (-0.36, 0.36):
                 bolts += [cyl_mesh(0.03, P, 0.005, x + dx, dy, 20), cyl_mesh(0.022, P + 0.005, 0.016, x + dx, dy, 6), cyl_mesh(0.011, P + 0.021, 0.012, x + dx, dy, 10)]
     return cat(parts), cat(plates), cat(bolts)
 
@@ -169,6 +182,145 @@ def base_mesh(bx, by, bz):
             bolts += [cyl_mesh(0.06, 0.03, 0.008, bx + dx, by + dy, 24), cyl_mesh(0.042, 0.038, 0.032, bx + dx, by + dy, 6)]   # washer, hex nut
             bolts.append(cyl_mesh(0.022, 0.07, 0.02, bx + dx, by + dy, 12))                                                    # the stud
     return block, plate, cat(bolts)
+
+
+def cyl_axis(p0, p1, r, n=16, caps=True):
+    """A cylinder of radius r from p0 to p1 (any direction)."""
+    p0 = np.asarray(p0, float); p1 = np.asarray(p1, float); a = p1 - p0; L = np.linalg.norm(a); a = a / L
+    u = np.cross(a, [0, 0, 1] if abs(a[2]) < 0.9 else [1, 0, 0]); u /= np.linalg.norm(u); w = np.cross(a, u)
+    ang = np.linspace(0, 2 * math.pi, n, endpoint=False)
+    ring = np.cos(ang)[:, None] * u + np.sin(ang)[:, None] * w
+    v = np.vstack([p0 + r * ring, p1 + r * ring, [p0, p1]]); f = []
+    for k in range(n):
+        k2 = (k + 1) % n
+        f += [[k, k2, n + k2], [k, n + k2, n + k]]
+        if caps:
+            f += [[2 * n, k2, k], [2 * n + 1, n + k, n + k2]]
+    return v, np.array(f)
+
+
+def tube_mesh(P, r, n=10):
+    """A tube of radius r along the polyline P (a cable), with frames carried along it (no twist)."""
+    P = np.asarray(P, float); T = np.gradient(P, axis=0); T /= np.linalg.norm(T, axis=1)[:, None]
+    u = np.cross(T[0], [0, 0, 1] if abs(T[0][2]) < 0.9 else [1, 0, 0]); u /= np.linalg.norm(u)
+    ang = np.linspace(0, 2 * math.pi, n, endpoint=False); V = []
+    for i in range(len(P)):
+        if i:
+            u = u - T[i] * (u @ T[i]); u /= np.linalg.norm(u)
+        w = np.cross(T[i], u)
+        V.append(P[i] + r * (np.cos(ang)[:, None] * u + np.sin(ang)[:, None] * w))
+    V = np.vstack(V); f = []
+    for i in range(len(P) - 1):
+        for k in range(n):
+            a, b = i * n + k, i * n + (k + 1) % n
+            f += [[a, b, b + n], [a, b + n, a + n]]
+    return V, np.array(f)
+
+
+def spline(pts, m=12):
+    """A Catmull-Rom curve through pts, m samples per span."""
+    pts = np.asarray(pts, float); Q = np.vstack([2 * pts[0] - pts[1], pts, 2 * pts[-1] - pts[-2]]); out = []
+    for i in range(1, len(Q) - 2):
+        p0, p1, p2, p3 = Q[i - 1], Q[i], Q[i + 1], Q[i + 2]
+        for s in np.linspace(0, 1, m, endpoint=False):
+            out.append(0.5 * (2 * p1 + (p2 - p0) * s + (2 * p0 - 5 * p1 + 4 * p2 - p3) * s * s + (3 * p1 - p0 - 3 * p2 + p3) * s ** 3))
+    out.append(pts[-1])
+    return np.array(out)
+
+
+def grid_mesh():
+    """The floor grating under the car where it stops: two fields beside the rail, bearing bars along the rail every
+    33 mm, cross bars every 100 mm, in a frame."""
+    out = []
+    for sy in (-1, 1):
+        y0, y1 = 0.5 * sy, 1.3 * sy; ylo, yhi = min(y0, y1), max(y0, y1); x0, x1 = -3.2, 3.2
+        for y in np.arange(ylo + 0.02, yhi - 0.01, 0.033):
+            out.append(box_mesh([0, y, 0.015], [x1 - x0, 0.004, 0.03]))
+        for x in np.arange(x0 + 0.05, x1 - 0.02, 0.1):
+            out.append(box_mesh([x, (ylo + yhi) / 2, 0.022], [0.006, yhi - ylo, 0.016]))
+        out += [box_mesh([0, ylo + 0.01, 0.016], [x1 - x0, 0.02, 0.032]), box_mesh([0, yhi - 0.01, 0.016], [x1 - x0, 0.02, 0.032]),
+                box_mesh([x0 + 0.01, (ylo + yhi) / 2, 0.016], [0.02, yhi - ylo, 0.032]), box_mesh([x1 - 0.01, (ylo + yhi) / 2, 0.016], [0.02, yhi - ylo, 0.032])]
+    return cat(out)
+
+
+def cabinet_spot(bx, by):
+    """Where a robot's control cabinet stands: beside it, away from the rail and from the middle of the cell."""
+    return bx + math.copysign(1.25, bx), by + math.copysign(1.3, by)
+
+
+def cabinet_meshes(cx, cy):
+    """An industrial control cabinet (the robot's controller and the cell's PLC): a 0.8 x 0.5 x 2.0 m steel enclosure
+    on a plinth, its door toward the rail, with a handle, an operator panel and signal lamps."""
+    s = -math.copysign(1, cy); W, D, H = 0.8, 0.5, 2.0; fy = cy + s * D / 2          # s: toward the rail; fy: the front
+    body = [box_mesh([cx, cy, 0.1 + H / 2], [W, D, H]), box_mesh([cx, cy, 0.1 + H + 0.02], [W + 0.04, D + 0.04, 0.04])]
+    door = [box_mesh([cx, fy + s * 0.008, 0.1 + H / 2], [W - 0.04, 0.016, H - 0.08])]
+    dark = [box_mesh([cx, cy, 0.05], [W, D, 0.1]), box_mesh([cx + 0.3, fy + s * 0.03, 1.1], [0.03, 0.03, 0.26]),
+            box_mesh([cx - 0.08, fy + s * 0.02, 1.45], [0.36, 0.012, 0.28])]
+    screen = [box_mesh([cx - 0.08, fy + s * 0.027, 1.47], [0.28, 0.004, 0.18])]
+    green = [cyl_axis([cx - 0.2, fy + s * 0.016, 1.78], [cx - 0.2, fy + s * 0.04, 1.78], 0.022)]
+    amber = [cyl_axis([cx - 0.1, fy + s * 0.016, 1.78], [cx - 0.1, fy + s * 0.04, 1.78], 0.022)]
+    return cat(body), cat(door), cat(dark), cat(screen), cat(green), cat(amber), (cx, fy, s)
+
+
+def plug_meshes(face, out):
+    """A round industrial connector plugged into a socket on a face: flange, metal body, knurled nut, rubber boot.
+    Returns (metal, rubber, the point where the cable leaves it)."""
+    face = np.asarray(face, float); out = np.asarray(out, float)
+    u = np.cross(out, [0, 0, 1]); u = u / np.linalg.norm(u) if np.linalg.norm(u) > 1e-6 else np.array([1.0, 0, 0]); w = np.cross(out, u)
+    fl = np.array([face + 0.045 * (a * u + b * w) for a in (-1, 1) for b in (-1, 1)])
+    flv = np.vstack([fl, fl + 0.008 * out]); flf = np.array([[0, 1, 3], [0, 3, 2], [4, 7, 5], [4, 6, 7], [0, 4, 5], [0, 5, 1], [2, 3, 7], [2, 7, 6], [0, 2, 6], [0, 6, 4], [1, 5, 7], [1, 7, 3]])
+    metal = cat([(flv, flf), cyl_axis(face, face + 0.075 * out, 0.03, 16), cyl_axis(face + 0.03 * out, face + 0.05 * out, 0.035, 12)])
+    rubber = cyl_axis(face + 0.075 * out, face + 0.12 * out, 0.022, 12)
+    return metal, rubber, face + 0.12 * out
+
+
+def cable_meshes(bx, by, cx, cy):
+    """The two cables from a robot's cabinet to its base (power, thick; signals, thin), on the floor, each plugged in at
+    both ends with a metal connector."""
+    sy = math.copysign(1, cy); sx = math.copysign(1, cx - bx)
+    metal, rubber, cables = [], [], []
+    for off, r in ((-0.09, 0.019), (0.09, 0.012)):
+        fb = np.array([bx + sx * 0.18 + off, by + sy * 0.45, 0.24]); ob = np.array([0, sy, 0.0])           # on the base's outer face
+        fc = np.array([cx - sx * 0.18 + off, cy - sy * 0.25, 0.3]); oc = np.array([0, -sy, 0.0])            # on the cabinet's front
+        m1, r1, a = plug_meshes(fb, ob); m2, r2, b = plug_meshes(fc, oc)
+        metal += [m1, m2]; rubber += [r1, r2]
+        pts = [a, a + ob * 0.08 + [0, 0, -0.04], [a[0], a[1] + sy * 0.32, r + 0.002],
+               [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, r + 0.002], [b[0], b[1] - sy * 0.12, r + 0.002], b + oc * 0.05 + [0, 0, -0.08], b]
+        C = spline(pts, 14); C[:, 2] = np.maximum(C[:, 2], r + 0.001)
+        cables.append(tube_mesh(C, r, 10))
+    return cat(metal), cat(rubber + cables)
+
+
+def door_meshes(xw, inward):
+    """A roll-up door in the end wall at x = xw: the slatted panel (with windows, a notch for the rail and a rubber seal),
+    and fixed: the guides it runs up in, the housing above them and the frame of the opening."""
+    xp = xw + inward * 0.1; W, H = DOOR_W, DOOR_HT
+    slats, glass = [], []
+    for z in np.arange(0.36, H - 0.05, 0.2):
+        if abs(z - 2.16) < 0.01:                                  # a row of windows
+            for y in np.linspace(-W / 2 + 0.45, W / 2 - 0.45, 4):
+                glass.append(box_mesh([xp, y, z + 0.1], [0.045, 0.55, 0.14]))
+            for y0, y1 in zip([-W / 2] + [y + 0.275 for y in np.linspace(-W / 2 + 0.45, W / 2 - 0.45, 4)],
+                              [y - 0.275 for y in np.linspace(-W / 2 + 0.45, W / 2 - 0.45, 4)] + [W / 2]):
+                slats.append(box_mesh([xp, (y0 + y1) / 2, z + 0.1], [0.04, y1 - y0, 0.18]))
+        else:
+            slats.append(box_mesh([xp, 0, z + 0.1], [0.04, W, 0.18]))
+        slats.append(box_mesh([xp, 0, z + 0.2], [0.05, W, 0.02]))
+    for sy in (-1, 1):                                            # the bottom slats, with a notch where the rail passes
+        slats.append(box_mesh([xp, sy * (W / 2 + 0.22) / 2, 0.21], [0.04, W / 2 - 0.22, 0.3]))
+    seal = [box_mesh([xp, sy * (W / 2 + 0.22) / 2, 0.03], [0.06, W / 2 - 0.22, 0.06]) for sy in (-1, 1)]
+    panel = cat(slats + seal); 
+    frame = [box_mesh([xp, sy * (W / 2 + 0.06), 3.25], [0.14, 0.12, 6.5]) for sy in (-1, 1)]
+    frame += [box_mesh([xp + inward * 0.1, 0, 6.65], [0.4, W + 0.4, 0.4])]
+    frame += [box_mesh([xw, sy * (W / 2 + 0.05), H / 2], [0.24, 0.1, H]) for sy in (-1, 1)] + [box_mesh([xw, 0, H + 0.05], [0.24, W + 0.2, 0.1])]
+    bump = [box_mesh([xw + inward * 0.25, sy * (W / 2 + 0.3), 0.5], [0.16, 0.16, 1.0]) for sy in (-1, 1)]   # yellow bollards
+    return panel, cat(glass), cat(frame), cat(bump)
+
+
+def stripe_meshes(x0, x1, y0, y1, w=0.12, h=0.004):
+    """The yellow line on the floor around the cell (the robots, their cabinets and the car's place)."""
+    return cat([box_mesh([(x0 + x1) / 2, y0, h / 2], [x1 - x0 + w, w, h]), box_mesh([(x0 + x1) / 2, y1, h / 2], [x1 - x0 + w, w, h]),
+                box_mesh([x0, (y0 + y1) / 2, h / 2], [w, y1 - y0, h]), box_mesh([x1, (y0 + y1) / 2, h / 2], [w, y1 - y0, h])])
 
 
 def box_mesh(c, s):
@@ -321,6 +473,8 @@ def run(ctx):
         links.append(pack(mesh[0], mesh[1], mat) if mesh is not None else {})
         if mesh is not None and role == "car:yaw":
             links[-1]["envmap"] = "cube"                   # metal: a view with a cube map shows the cell in it
+        if mesh is not None and role.endswith(("lamps", "screens")):
+            links[-1]["emissive"] = True; links[-1]["shadow"] = False
         if mesh is not None and role.startswith("arc:"):
             links[-1]["fx"] = "arc"; links[-1]["emissive"] = True; links[-1]["shadow"] = False
     # the sled and the car
@@ -357,8 +511,31 @@ def run(ctx):
     for name, bx, by, bz, aim in robots:
         blk, plate, bolts = base_mesh(bx, by, bz)
         static += [("static:%s base" % name, blk, BASE_MAT), ("static:%s plate" % name, plate, PLATE_MAT), ("static:%s bolts" % name, bolts, BOLT_MAT)]
+    # the floor grating under the car, the yellow line around the cell, the control cabinets and their cables
+    static += [("static:grating", grid_mesh(), GRID_MAT), ("static:floor line", stripe_meshes(-3.7, 3.7, -4.4, 4.4), STRIPE_MAT)]
+    cab = {k: [] for k in ("body", "door", "dark", "screen", "green", "amber", "metal", "cable")}
+    for name, bx, by, bz, aim in robots:
+        cx, cy = cabinet_spot(bx, by)
+        body, door, dark, screen, green, amber, _ = cabinet_meshes(cx, cy)
+        metal, cable = cable_meshes(bx, by, cx, cy)
+        for k, m in zip(("body", "door", "dark", "screen", "green", "amber", "metal", "cable"), (body, door, dark, screen, green, amber, metal, cable)):
+            cab[k].append(m)
+    static += [("static:cabinets", cat(cab["body"]), CAB_MAT), ("static:cabinet doors", cat(cab["door"]), CAB_DOOR),
+               ("static:cabinet fittings", cat(cab["dark"]), CAB_DARK), ("static:cabinet screens", cat(cab["screen"]), SCREEN),
+               ("static:cabinet lamps", cat(cab["green"]), LAMP_GREEN), ("static:cabinet amber lamps", cat(cab["amber"]), LAMP_AMBER),
+               ("static:connectors", cat(cab["metal"]), PLUG_MAT), ("static:cables", cat(cab["cable"]), CABLE_MAT)]
+    # the doors: fixed guides, housing and frame; the panels rise on their own joints (door:in, door:out: metres up),
+    # moved by the Welding cell block before the car comes in and before it leaves
+    doors = []
+    for jn, xw, inward in (("door:in", HALL["x"][0], 1), ("door:out", HALL["x"][1], -1)):
+        panel, glass, frame, bump = door_meshes(xw, inward)
+        static += [("static:%s frame" % jn, frame, FRAME_MAT), ("static:%s bollards" % jn, bump, STRIPE_MAT)]
+        doors.append((jn, panel, glass))
     for jn, mesh, mat in static:
         joint(np.zeros(3), [0, 0, 1], jn, mesh, mat, parent="base", kind="fixed")
+    for jn, panel, glass in doors:
+        joint(np.zeros(3), [0, 0, 1], jn, panel, DOOR_MAT, parent="base", kind="prismatic")
+        joint(np.zeros(3), [0, 0, 1], "static:%s windows" % jn, glass, ("#20262d", 0.6, 0.15), parent=jn, kind="fixed")   # (rising with it)
     # the weld beads: short pieces of each seam, riding on the car (parent: the car's turn), each on a straight joint that
     # holds it HIDE m below its place (under the floor) until the Welding cell block lifts it there as the torch passes
     beads = []
