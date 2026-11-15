@@ -6,7 +6,7 @@
     "name": "2 · Production line",
     "description": "Car after car: the sled brings the frame in, the four robots find it with their laser cameras, weld their quarter of it following the seams, and the car slides out for the next one.",
     "published_version": 0,
-    "updated": "2026-11-15 01:58:45",
+    "updated": "2026-11-15 02:52:07",
     "graph": {
         "nodes": [
             {
@@ -26,9 +26,9 @@
                 "x": 0,
                 "y": -200,
                 "params": {
-                    "robot": "front right"
+                    "robot": "all four"
                 },
-                "title": "The front right robot for the 3D view"
+                "title": "The whole cell for the 3D view: car, sled and four robots"
             },
             {
                 "id": "line",
@@ -62,7 +62,7 @@
                     "channels": "joints,scene,event,line",
                     "keep": 3000
                 },
-                "title": "The robot's joints and the cell, live"
+                "title": "The cell's joints and seams, live"
             },
             {
                 "id": "live",
@@ -83,19 +83,7 @@
                     "numbers": "line.cars=Cars, line.seams_ok_pct=Seams OK:%, line.worst_mm=Last car: worst weld:mm, line.cycle_s=Cycle:s, line.cars_per_hour=Cars / hour",
                     "events_channel": "event"
                 },
-                "title": "Live: the front right robot, car after car"
-            },
-            {
-                "id": "tel",
-                "type": "telemetry",
-                "x": 380,
-                "y": 0,
-                "params": {
-                    "interval": 1,
-                    "channels": "event,line",
-                    "keep": 3000
-                },
-                "title": "Events and line numbers"
+                "title": "Live: the four robots, car after car"
             },
             {
                 "id": "tel_line",
@@ -108,24 +96,6 @@
                     "keep": 4000
                 },
                 "title": "Car by car"
-            },
-            {
-                "id": "view",
-                "type": "viewer-3d",
-                "x": 760,
-                "y": -60,
-                "params": {
-                    "environment": "studio",
-                    "quality": "high",
-                    "floor": true,
-                    "grid": false,
-                    "trails": false,
-                    "speed": 1,
-                    "live_channel": "none",
-                    "numbers": "line.cars=Cars, line.seams_ok_pct=Seams OK:%, line.worst_mm=Last car: worst weld:mm, line.cycle_s=Cycle:s, line.cars_per_hour=Cars / hour",
-                    "events_channel": "event"
-                },
-                "title": "Replay: the whole cell, the newest five cars (when the run has finished)"
             },
             {
                 "id": "errors",
@@ -244,17 +214,6 @@
                 }
             },
             {
-                "id": "line.telemetry>tel.from",
-                "from": {
-                    "node": "line",
-                    "port": "telemetry"
-                },
-                "to": {
-                    "node": "tel",
-                    "port": "from"
-                }
-            },
-            {
                 "id": "line.telemetry>tel_line.from",
                 "from": {
                     "node": "line",
@@ -263,28 +222,6 @@
                 "to": {
                     "node": "tel_line",
                     "port": "from"
-                }
-            },
-            {
-                "id": "line.scene>view.scene",
-                "from": {
-                    "node": "line",
-                    "port": "scene"
-                },
-                "to": {
-                    "node": "view",
-                    "port": "scene"
-                }
-            },
-            {
-                "id": "tel.stream>view.scene",
-                "from": {
-                    "node": "tel",
-                    "port": "stream"
-                },
-                "to": {
-                    "node": "view",
-                    "port": "scene"
                 }
             },
             {

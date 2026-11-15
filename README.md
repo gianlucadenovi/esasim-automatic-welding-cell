@@ -33,7 +33,7 @@ Learn on the GPU, then run the line car after car, live in 3D.
 
 ## What you get
 
-- On the **View** page: *welding-cell-models (robot, car frame)* (2 · Production line), *The robot's joints and the cell, live* (2 · Production line), *Live: the front right robot welding a car with the network as it learns* (1 · Learn to follow the seams), *Events and scores* (1 · Learn to follow the seams), *Learning curve* (1 · Learn to follow the seams), *Replay: the whole cell, car by car (when the run has finished)* (1 · Learn to follow the seams), *How well the seam camera reads* (1 · Learn to follow the seams), *By joint type* (1 · Learn to follow the seams), *Learning* (1 · Learn to follow the seams), *Live: the front right robot, car after car* (2 · Production line), *Events and line numbers* (2 · Production line), *Car by car* (2 · Production line).
+- On the **View** page: *welding-cell-models (robot, car frame)* (2 · Production line), *The cell's joints and seams, live* (2 · Production line), *Live: the four robots welding a car with the network as it learns* (1 · Learn to follow the seams), *Learning curve* (1 · Learn to follow the seams), *How well the seam camera reads* (1 · Learn to follow the seams), *By joint type* (1 · Learn to follow the seams), *Learning* (1 · Learn to follow the seams), *Live: the four robots, car after car* (2 · Production line), *Car by car* (2 · Production line), *Weld accuracy, car by car* (2 · Production line), *Finding the car* (2 · Production line), *The line* (2 · Production line).
 
 ## Data and licences
 
@@ -47,13 +47,19 @@ An [EsaSim](https://esacode.com/) project of the workspace Gianluca De Novi's wo
 
 ### Blueprints in this repository
 
-- [1 · Learn to follow the seams](blueprints/1-learn-to-follow-the-seams.json) · 11 blocks · version 4
-- [2 · Production line](blueprints/2-production-line.json) · 12 blocks
+- [1 · Learn to follow the seams](blueprints/1-learn-to-follow-the-seams.json) · 9 blocks · version 5
+- [2 · Production line](blueprints/2-production-line.json) · 10 blocks
 
 ### Workspace blocks it uses
 
 - [Welding cell model](blocks/ws-welding-robot-model) · version 3
 - [Welding cell](blocks/ws-welding-cell) · version 7
+
+### Files the blueprints make
+
+Kept with the project (listed in [esasim-files.json](esasim-files.json)), so it runs without making them again:
+
+- **weld-tracker** · 1 file, 2.2 MB · made by 1 · Learn to follow the seams: Welding cell: learn to follow the seams · in [files/weld-tracker.zip](files/weld-tracker.zip)
 
 The data the blueprints read (welding-cell-models) stays in EsaSim.
 

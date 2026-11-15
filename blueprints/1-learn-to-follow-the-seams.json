@@ -5,8 +5,8 @@
     },
     "name": "1 · Learn to follow the seams",
     "description": "The seam cameras' network learns on the GPU to find the joint in laser profiles; every two minutes a whole car is welded with it, live in 3D. The network goes to the weld-tracker dataset.",
-    "published_version": 4,
-    "updated": "2026-11-15 02:20:02",
+    "published_version": 5,
+    "updated": "2026-11-15 02:51:55",
     "graph": {
         "nodes": [
             {
@@ -26,9 +26,9 @@
                 "x": 0,
                 "y": -200,
                 "params": {
-                    "robot": "front right"
+                    "robot": "all four"
                 },
-                "title": "The front right robot for the 3D view"
+                "title": "The whole cell for the 3D view: car, sled and four robots"
             },
             {
                 "id": "learn",
@@ -67,7 +67,7 @@
                     "channels": "joints,scene,event,train",
                     "keep": 3000
                 },
-                "title": "The robot's joints and the cell, live"
+                "title": "The cell's joints and seams, live"
             },
             {
                 "id": "live",
@@ -88,19 +88,7 @@
                     "numbers": "train.minutes=Minutes, train.p95_confident_mm=Camera: 95 % within:mm, train.car_worst_mm=Last car: worst weld:mm, train.car_seams_ok=Last car: seams OK",
                     "events_channel": "event"
                 },
-                "title": "Live: the front right robot welding a car with the network as it learns"
-            },
-            {
-                "id": "tel_cell",
-                "type": "telemetry",
-                "x": 380,
-                "y": 0,
-                "params": {
-                    "interval": 1,
-                    "channels": "event,train",
-                    "keep": 3000
-                },
-                "title": "Events and scores"
+                "title": "Live: the four robots welding a car with the network as it learns"
             },
             {
                 "id": "tel_train",
@@ -113,24 +101,6 @@
                     "keep": 4000
                 },
                 "title": "Learning curve"
-            },
-            {
-                "id": "view",
-                "type": "viewer-3d",
-                "x": 760,
-                "y": -60,
-                "params": {
-                    "environment": "studio",
-                    "quality": "high",
-                    "floor": true,
-                    "grid": false,
-                    "trails": false,
-                    "speed": 1,
-                    "live_channel": "none",
-                    "numbers": "train.minutes=Minutes, train.p95_confident_mm=Camera: 95 % within:mm, train.car_worst_mm=Last car: worst weld:mm, train.car_seams_ok=Last car: seams OK",
-                    "events_channel": "event"
-                },
-                "title": "Replay: the whole cell, car by car (when the run has finished)"
             },
             {
                 "id": "acc",
@@ -241,17 +211,6 @@
                 }
             },
             {
-                "id": "learn.telemetry>tel_cell.from",
-                "from": {
-                    "node": "learn",
-                    "port": "telemetry"
-                },
-                "to": {
-                    "node": "tel_cell",
-                    "port": "from"
-                }
-            },
-            {
                 "id": "learn.telemetry>tel_train.from",
                 "from": {
                     "node": "learn",
@@ -260,28 +219,6 @@
                 "to": {
                     "node": "tel_train",
                     "port": "from"
-                }
-            },
-            {
-                "id": "learn.scene>view.scene",
-                "from": {
-                    "node": "learn",
-                    "port": "scene"
-                },
-                "to": {
-                    "node": "view",
-                    "port": "scene"
-                }
-            },
-            {
-                "id": "tel_cell.stream>view.scene",
-                "from": {
-                    "node": "tel_cell",
-                    "port": "stream"
-                },
-                "to": {
-                    "node": "view",
-                    "port": "scene"
                 }
             },
             {
@@ -323,12 +260,6 @@
             "items": {
                 "live": {
                     "x": 0,
-                    "y": 0,
-                    "w": 6,
-                    "h": 17
-                },
-                "view": {
-                    "x": 6,
                     "y": 0,
                     "w": 6,
                     "h": 17

@@ -1,0 +1,36 @@
+{
+    "esasim": {
+        "kind": "files",
+        "version": 1
+    },
+    "release": null,
+    "datasets": [
+        {
+            "name": "weld-tracker",
+            "dataset_id": 17,
+            "root": "weld-tracker",
+            "location": {
+                "id": 3,
+                "kind": "worker"
+            },
+            "made_by": [
+                "1 · Learn to follow the seams: Welding cell: learn to follow the seams"
+            ],
+            "version": 1,
+            "files": 1,
+            "bytes": 2334529,
+            "key": "293ed9301a20f5d16fc1a1ece99caea3aa3b4aee6eaf882e60330919c8149fe1",
+            "parts": [
+                {
+                    "zip": "files/weld-tracker.zip",
+                    "size": 2167355,
+                    "sha256": "80f70ef0a4723f490b674b60b44fa5af64a7251eceab99aa9697a8b73d0fa3e8",
+                    "files": 1,
+                    "in": "repo"
+                }
+            ],
+            "left_out": []
+        }
+    ],
+    "saved": "2026-11-15T03:02:28+00:00"
+}
