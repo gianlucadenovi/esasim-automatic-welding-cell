@@ -845,9 +845,11 @@ if (K.cam.coordinateSystem !== renderer.coordinateSystem) { K.cam.coordinateSyst
 var vis = meshes.map(function (m) { return m.visible; }), sa = renderer.shadowMap.autoUpdate, prt = renderer.getRenderTarget(), pf = renderer.getActiveCubeFace(), pm = renderer.getActiveMipmapLevel();
 meshes.forEach(function (m) { m.visible = false; }); renderer.shadowMap.autoUpdate = false;
 var al = Object.keys(RFX.arcs).map(function (k) { var a_ = RFX.arcs[k], v = [a_.light.intensity, a_.glow.visible]; a_.light.intensity = 0; a_.glow.visible = false; return v; });
+var hid = []; [RFX.sparks && RFX.sparks.mesh].concat(RFX.smoke ? RFX.smoke.list.map(function (p) { return p.s; }) : []).concat(units().reduce(function (a, U) { return a.concat(U.arm && U.arm.userData.fx ? U.arm.userData.fx.filter(function (m) { return m.userData.fx === 'arc'; }) : []); }, [])).forEach(function (o) { if (o && o.visible) { o.visible = false; hid.push(o); } });
 try { renderer.setRenderTarget(K.rt, K.face, 0); renderer.render(scene, K.cam.children[K.face]); } catch (e) { }
 renderer.setRenderTarget(prt, pf, pm); renderer.shadowMap.autoUpdate = sa; meshes.forEach(function (m, n) { m.visible = vis[n]; });
 Object.keys(RFX.arcs).forEach(function (k, n) { RFX.arcs[k].light.intensity = al[n][0]; RFX.arcs[k].glow.visible = al[n][1]; });
+hid.forEach(function (o) { o.visible = true; });
 if (++K.face === 6) { K.face = 0; K.rt.texture.needsPMREMUpdate = true; }
 }
 function rfxHall() {
