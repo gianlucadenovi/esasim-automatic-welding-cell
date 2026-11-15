@@ -958,7 +958,8 @@ var NR = 480, M = 12, pos = new Float32Array(NR * M * 3), nrm = new Float32Array
 for (var r = 0; r < NR - 1; r++) for (var k = 0; k < M; k++) { var a0 = r * M + k, b0 = r * M + (k + 1) % M, c0 = a0 + M, d0 = b0 + M; idx.push(a0, c0, b0, b0, c0, d0); }
 var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3)); g.setIndex(idx);
 var mesh = new THREE.Mesh(g, dm); mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; scene.add(mesh); RFX.dressAll.push({ ud: ud, mesh: mesh });
-ud.dress.push({ an: an, slack: c.slack || [], R: +c.radius || 0.02, mesh: mesh, NR: NR, M: M, ctrl: [] });
+var keep = (c.keep || []).map(function (k) { var ix = (ud.names || {})[lc(k[0])]; return ix == null || !ud.joints[ix] ? null : { g: ud.joints[ix], a: new THREE.Vector3().fromArray(k[1]), b: new THREE.Vector3().fromArray(k[2]), r: +k[3] }; }).filter(Boolean);
+ud.dress.push({ an: an, keep: keep, slack: c.slack || [], R: +c.radius || 0.02, mesh: mesh, NR: NR, M: M, ctrl: [] });
 });
 }
 ud.dress.forEach(function (C) {
@@ -968,6 +969,23 @@ var W = C.an.map(function (a) { a.g.updateWorldMatrix(true, false); return a.g.l
 for (var i = 1; i < W.length; i++) { var mid = W[i - 1].clone().add(W[i]).multiplyScalar(0.5); mid.y -= (+C.slack[i - 1] || 0); ctrl.push(mid, W[i]); }
 var cv = new THREE.CatmullRomCurve3(ctrl, false, 'centripetal'), L = cv.getLength();
 var N = Math.max(40, Math.min(C.NR, Math.round(L / 0.011))), P = cv.getSpacedPoints(N - 1), M = C.M;
+if (C.keep.length) {                                                   // kept clear of the arm: pushed out of its capsules
+var KA = C.keep.map(function (k) { k.g.updateWorldMatrix(true, false); return [k.g.localToWorld(DRV.copy(k.a)).clone(), k.g.localToWorld(DRV.copy(k.b)).clone(), k.r + C.R + 0.012]; });
+var push = function () {
+for (var i = 3; i < N - 3; i++) for (var q = 0; q < KA.length; q++) {
+var A = KA[q][0], B = KA[q][1], need = KA[q][2];
+DRV2.subVectors(B, A); var t = Math.max(0, Math.min(1, DRV3.subVectors(P[i], A).dot(DRV2) / DRV2.lengthSq()));
+DRV3.copy(A).addScaledVector(DRV2, t); var dd = P[i].distanceTo(DRV3);
+if (dd < need) { if (dd < 1e-6) continue; P[i].sub(DRV3).multiplyScalar(need / dd).add(DRV3); }
+}
+};
+for (var it = 0; it < 4; it++) {
+push();
+var Q = P.map(function (p) { return p.clone(); });
+for (var i = 1; i < N - 1; i++) P[i].copy(Q[i]).multiplyScalar(0.5).addScaledVector(Q[i - 1], 0.25).addScaledVector(Q[i + 1], 0.25);
+}
+push();
+}
 var pos = C.mesh.geometry.attributes.position.array, nrm = C.mesh.geometry.attributes.normal.array;
 var T = new THREE.Vector3(), n = new THREE.Vector3(), b = new THREE.Vector3();
 for (var r = 0; r < N; r++) {
