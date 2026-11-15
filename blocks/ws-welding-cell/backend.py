@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell (ws-welding-cell) · version 9 · machine block, Python: def run(ctx)
+# Welding cell (ws-welding-cell) · version 10 · machine block, Python: def run(ctx)
 # Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam, without the robots touching the car or each other; lear
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -97,7 +97,8 @@ import numpy as np
 # ===================================================================================================== the cell
 CAR_Z = 1.05            # car origin height when on the sled (frame bottom at 0.50 m = sled top)
 SLED_TOP = 0.50
-STOP_X, ENTRY_X, EXIT_X = 0.0, -10.0, 10.0
+STOP_X, ENTRY_X, EXIT_X = 0.0, -16.5, 16.5      # m along the rail: the car waits outside the hall (walls at x = -13 and 13)
+DOOR_H, DOOR_V = 3.0, 0.75                      # the hall's roll-up doors: how far they rise (m) and how fast (m/s)
 LOOKAHEAD = 0.065       # laser line ahead of the wire (m)
 ROBOT_DEFS = [          # name, base x, y, z (pedestal), quarter
     ("front_right", 1.35, -2.00, 0.45, "front"), ("front_left", 1.35, 2.00, 0.45, "front"),
@@ -538,6 +539,7 @@ class CarRun:
         self.t = 0.0
         self.q = [r["home"].copy() for r in robots]
         self.state = [0] * 4; self.seam = [-1] * 4; self.prog = [0.0] * 4; self.werr = [0.0] * 4; self.laser = [0] * 4
+        self.door = [0.0, 0.0]; self.door_to = [0.0, 0.0]          # the way in, the way out: how far each door is up
         self.car_x = ENTRY_X
         self.est = (np.eye(3), np.array([STOP_X, 0, CAR_Z])); self.localised = False
         self._last_sensor = [-1.0] * 4
@@ -563,10 +565,20 @@ class CarRun:
             for q in self.q:
                 f += [round(float(x), 2) for x in np.degrees(q)]
             f += list(self.state) + list(self.seam) + [round(p, 4) for p in self.prog] + [round(e, 2) for e in self.werr] + list(self.laser)
+            for k in (0, 1):                                  # the doors move toward where they are sent
+                st = DOOR_V * self.DT; self.door[k] += max(-st, min(st, self.door_to[k] - self.door[k]))
+            f += [round(self.door[0], 3), round(self.door[1], 3)]   # f[51], f[52]
             self.frames.append(f); self.t += self.DT
 
     def event(self, text):
         self.events.append(dict(t=round(self.t, 2), text=text))
+
+    def open_door(self, k):
+        """Raise door k (0: the way in, 1: the way out) and wait until it is up."""
+        self.door_to[k] = DOOR_H
+        while self.door[k] < DOOR_H - 1e-6:
+            self.emit()
+        self.emit(int(0.3 / self.DT))
 
     # --- motions (all four robots step together; each robot has its own list of planned steps)
     def joint_path(self, q0, q1):
@@ -897,7 +909,10 @@ class CarRun:
 
     def run(self):
         self.emit()
+        self.event("Car %d waits at the door" % self.no)
+        self.open_door(0)
         self.move_car(ENTRY_X, STOP_X, text="Car %d comes in" % self.no)
+        self.door_to[0] = 0.0                                  # it closes behind the car while the work goes on
         self.event("Sled stopped; car clamped"); [self.emit() for _ in range(int(1.0 / self.DT))]
         meas = []
         if self.trk.net is not None:
@@ -929,7 +944,11 @@ class CarRun:
             else:
                 self.event("No collisions: the robots kept %.1f mm from the car and %.0f mm from each other" % (clr["car_clear_mm"], clr["robot_clear_mm"]))
         [self.emit() for _ in range(int(0.6 / self.DT))]
+        self.open_door(1)
         self.move_car(STOP_X, EXIT_X, text="Car %d leaves" % self.no)
+        self.door_to = [0.0, 0.0]
+        while self.door[0] > 1e-6 or self.door[1] > 1e-6:          # both doors down before the next car
+            self.emit()
         Re, pe = self.est
         return dict(car=self.no, cycle_s=round(self.t, 1), seams=len(self.welds), seams_ok=ok, worst_mm=round(worst, 3),
                     mean_mm=round(float(np.mean([w["mean_mm"] for w in self.welds])), 3),
@@ -1142,7 +1161,7 @@ class LiveRobot:
         self.layout = model.get("joints_layout")
         self.hide = float(model.get("hide", 5.0))
         if self.layout:
-            shown = sorted({j.split(":")[0] for j in self.layout if ":" in j and not j.startswith(("car", "bead", "arc", "static"))},
+            shown = sorted({j.split(":")[0] for j in self.layout if ":" in j and not j.startswith(("car", "bead", "arc", "static", "door"))},
                            key=lambda n: names.index(n) if n in names else 9)
             self.show = [names.index(n) for n in shown if n in names]
         else:                                                      # an older model: the car, then one robot (j7-j12)
@@ -1165,6 +1184,7 @@ class LiveRobot:
         self.arcs = {names.index(n): (a["joint"].lower(), float(a["on"])) for n, a in (model.get("arcs") or {}).items() if n in names}
         self.all_beads = [j for v in self.beads.values() for j, _ in v]
         has_rail = any(j.startswith("static:rail") for j in (self.layout or []))
+        self.doors = [j.lower() for j in (self.layout or []) if j.lower() in ("door:in", "door:out")]   # the hall's doors, if the model has them
         self.static = [] if has_rail else [dict(kind="box", center=[0, 0, 0.16], size=[24, 0.22, 0.32], color="#b3141c")]   # (an older model)
         for i, r in enumerate(robots):
             if i not in self.show:
@@ -1195,6 +1215,9 @@ class LiveRobot:
             d[j] = self.hide
         for i, (j, on) in self.arcs.items():
             d[j] = on if f[31 + i] == 3 else 0.0
+        if len(f) > 52:
+            for j in self.doors:
+                d[j] = f[51] if j == "door:in" else f[52]
         return d
 
     def joints(self, f):
@@ -1211,7 +1234,7 @@ class LiveRobot:
                 v = car[role]
             elif role == "fixed":
                 v = 0.0
-            elif role.startswith(("bead:", "arc:", "static:")):
+            elif role.startswith(("bead:", "arc:", "static:", "door:")):
                 continue                                     # by name (the beads, the arcs), or never moved (the rail, the bases)
             else:
                 rname, what = role.split(":"); i = self.names.index(rname)
