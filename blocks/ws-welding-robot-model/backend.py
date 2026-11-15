@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell model (ws-welding-robot-model) · version 16 · machine block, Python: def run(ctx)
+# Welding cell model (ws-welding-robot-model) · version 17 · machine block, Python: def run(ctx)
 # The welding cell for EsaSim's 3D view: the four KUKA KR 210 robots with their swan-neck torches and the car body frame on its sled, one model with each part in its own material.
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -346,10 +346,18 @@ def dress_route(name, spot):
     each span (m: + sags, - arches). It leaves the base at the back, climbs A1, runs down the outside of the upper
     arm, over the elbow, along the top of the forearm and loops over the wrist to the tool."""
     end = [6, (1.85, 0.085, 2.184)] if spot else [6, (1.86, 0.0, 1.845)]
-    pts = [[0, (-0.43, -0.28, 0.28)], [1, (-0.36, -0.29, 0.76)], [2, (0.36, -0.47, 1.05)], [2, (0.34, -0.465, 1.82)],
-           [3, (0.80, -0.06, 1.99)], [3, (1.24, -0.05, 1.96)], [4, (1.47, 0.0, 1.915)], end]
-    slack = [0.05, 0.03, 0.02, 0.05, 0.02, 0.02, -0.10]
+    pts = [[0, (-0.43, -0.28, 0.28)], [1, (-0.36, -0.29, 0.76)], [2, (0.36, -0.47, 1.0)], [2, (0.34, -0.47, 1.52)],
+           [3, (0.80, -0.06, 2.0)], [3, (1.24, -0.05, 1.98)], [4, (1.47, 0.0, 1.95)], end]
+    slack = [0.06, 0.07, 0.02, 0.12, 0.02, 0.03, -0.15]
     return pts, slack
+
+
+# what the dress pack must keep clear of: the arm as capsules (link, end, end, radius; robot frame at zero angles)
+DRESS_KEEP = [[1, (0, 0, 0.3), (0, 0, 0.75), 0.38], [2, (0.35, -0.21, 0.72), (0.35, -0.21, 1.6), 0.21],
+              [2, (0.35, -0.42, 1.83), (0.35, 0.0, 1.83), 0.2], [3, (0.35, -0.05, 1.83), (0.35, 0.38, 1.83), 0.2],
+              [3, (0.25, 0.06, 1.84), (0.62, 0.06, 1.84), 0.22], [3, (0.62, 0.0, 1.8), (1.3, 0.0, 1.8), 0.12],
+              [4, (1.3, 0.0, 1.784), (1.64, 0.0, 1.784), 0.11], [5, (1.575, -0.15, 1.784), (1.575, 0.19, 1.784), 0.125],
+              [6, (1.7, 0.0, 1.784), (1.8, 0.0, 1.784), 0.1]]
 
 
 def cabinet_meshes(cx, cy):
@@ -1068,7 +1076,8 @@ def run(ctx):
         loc = lambda k, p: np.asarray(p, float) - (QP[k - 1] if k > 0 else 0)
         P = [np.asarray(p, float) for _, p in pts]
         anchors = [[jn(k), np.round(loc(k, p), 4).tolist()] for k, p in pts]
-        dress.append({"robot": name, "anchors": anchors, "slack": slack, "radius": DRESS_R, "color": DRESS_MAT[0]})
+        keep = [[jn(k), np.round(loc(k, a_), 4).tolist(), np.round(loc(k, b_), 4).tolist(), r_] for k, a_, b_, r_ in DRESS_KEEP]
+        dress.append({"robot": name, "anchors": anchors, "slack": slack, "radius": DRESS_R, "color": DRESS_MAT[0], "keep": keep})
         for i, (k, p) in enumerate(pts):
             d = (P[min(i + 1, len(P) - 1)] - P[max(i - 1, 0)]); d = d / np.linalg.norm(d)
             q = loc(k, p)
