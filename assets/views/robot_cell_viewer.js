@@ -924,7 +924,7 @@ g.fillText(name, x + iw + gap, 270); tx.needsUpdate = true;
 paint(null);
 fromProject(['esacode_logo_white.png'], 'buffer', function (buf) { var im = new Image(); im.onload = function () { paint(im); }; im.src = URL.createObjectURL(new Blob([buf], { type: 'image/png' })); }, function () { });
 var mat = new THREE.MeshStandardMaterial({ map: tx, transparent: true, roughness: 0.55, metalness: 0.1, emissive: 0xffffff, emissiveMap: tx, emissiveIntensity: 0.35, depthWrite: false });
-[[zN + 0.03, 0], [zS - 0.03, Math.PI]].forEach(function (p) { var s = new THREE.Mesh(new THREE.PlaneGeometry(8, 2), mat); s.position.set(xc, 5.2, p[0]); s.rotation.y = p[1]; hall.add(s); });
+[[zN + 0.03, 0], [zS - 0.03, Math.PI]].forEach(function (p) { var s = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 1.2), mat); s.position.set(xc, 2.6, p[0]); s.rotation.y = p[1]; hall.add(s); });
 }
 function rfxHall() {
 var U0 = firstUnit(), H = U0 && U0.model && U0.model.hall;
