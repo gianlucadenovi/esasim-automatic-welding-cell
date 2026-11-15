@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell (ws-welding-cell) · version 10 · machine block, Python: def run(ctx)
+# Welding cell (ws-welding-cell) · version 11 · machine block, Python: def run(ctx)
 # Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam, without the robots touching the car or each other; lear
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -97,7 +97,7 @@ import numpy as np
 # ===================================================================================================== the cell
 CAR_Z = 1.05            # car origin height when on the sled (frame bottom at 0.50 m = sled top)
 SLED_TOP = 0.50
-STOP_X, ENTRY_X, EXIT_X = 0.0, -16.5, 16.5      # m along the rail: the car waits outside the hall (walls at x = -13 and 13)
+STOP_X, ENTRY_X, EXIT_X = 0.0, -11.0, 11.0      # m, in the MIG cell's frame: the car waits outside the entry door (world -16.5; walls at -13 and 13)
 DOOR_H, DOOR_V = 3.0, 0.75                      # the hall's roll-up doors: how far they rise (m) and how fast (m/s)
 LOOKAHEAD = 0.065       # laser line ahead of the wire (m)
 ROBOT_DEFS = [          # name, base x, y, z (pedestal), quarter
@@ -277,6 +277,275 @@ class Collide:
 
 
 COLL = None                 # the cell's Collide, once the models are read
+
+# ===================================================================================================== the spot welding cell
+# The line has two cells along the rail: this MIG cell (its car stops at CELL_A_X) and, after it, a spot welding cell
+# (CELL_B_X) with four more KR 210s carrying C-guns. Everything above is worked out in the MIG cell's own frame (its car
+# stops at x = 0); the spot cell works in its own frame too, and the 3D view puts each where it is on the rail. A car
+# stays on its sled through both cells: the model has two sleds (car, car2); while one car is welded in the MIG cell the
+# one before it gets its spot welds, then the spot cell's car leaves through the exit door, the MIG cell's car moves on
+# into the spot cell, where locating pins hold it exactly, and the next car comes in through the entry door on the
+# sled that has just gone out (put back to the start behind the closed doors).
+# The spot guns weld a fixed programme: the car is pinned, so the same spots, planned once (reachable, and clear of the
+# car at the approach, on the way in and clamped), are welded on every car. For each spot the open gun comes to 12 cm
+# off the sheet's edge, slides on over it, touches, closes, welds for a second, opens and slides back off.
+CELL_A_X, CELL_B_X = -5.5, 5.5          # m along the rail (the hall: -13 to 13)
+EXIT_WORLD = 16.5                       # m: where a finished car waits outside the exit door
+
+GUN_K = np.array([2.24, 0.0, 1.784])                       # contact point (the gun's TCP), robot frame at zero angles
+GUN_R0 = np.c_[[0, 0, -1.0], [0, -1.0, 0], [-1.0, 0, 0]]  # tool x: onto the sheet; z: the electrodes' axis toward the robot
+GUN_OPEN = 0.07                                            # m: the moving electrode backs off this far to open
+SPOT_CLEAR_ARM, SPOT_CLEAR_GUN = 0.025, 0.006               # m: least distances to the car, moving
+SPOTS_CELL = r'''{"front_right":[[0.651,-0.88,0.2376,-0.0549,-0.7404,0.6699,0.1804,-0.6672,-0.7227,39.6,28.07,-45.55,-49.76,-51.65,65.42],[0.721,-0.9522,0.114,-0.037,-0.9975,0.0601,0.9974,-0.0331,0.0644,49.6,11.45,-68.27,-112.53,-71.97,55.93],[0.7256,-0.9656,-0.0266,0.1172,-0.993,0.0166,0.993,0.1169,-0.0148,45.66,-10.39,-72.73,-130.88,-84.56,85.68],[0.7212,-0.9628,-0.1401,0.1061,-0.9923,-0.0641,0.9923,0.1098,-0.0574,46.0,-37.88,-68.23,-128.25,-103.94,105.95],[0.7144,-0.9589,-0.2248,-0.162,-0.9819,-0.0976,0.9839,-0.1532,-0.092,52.5,-44.55,-58.42,-106.55,-99.53,107.86],[1.6817,-1.0231,-0.0376,0.1458,-0.9859,-0.0818,0.7562,0.0577,0.6518,-63.09,-29.85,-76.48,-63.77,102.25,-145.46]],"front_left":[[0.651,0.88,0.2376,-0.0549,0.7404,0.6699,0.1804,0.6672,-0.7227,-39.6,28.07,-45.55,49.76,-51.65,-65.42],[0.721,0.9522,0.114,-0.037,0.9975,0.0601,0.9974,0.0331,0.0644,-49.6,11.45,-68.27,112.53,-71.97,-55.93],[0.7256,0.9656,-0.0266,0.1172,0.993,0.0166,0.993,-0.1169,-0.0148,-45.66,-10.39,-72.73,130.88,-84.56,-85.68],[0.7212,0.9628,-0.1401,0.1061,0.9923,-0.0641,0.9923,-0.1098,-0.0574,-46.0,-37.88,-68.23,128.25,-103.94,-105.95],[0.7144,0.9589,-0.2248,-0.162,0.9819,-0.0976,0.9839,0.1532,-0.092,-52.5,-44.55,-58.42,106.55,-99.53,-107.86],[1.6817,1.0231,-0.0376,0.1458,0.9859,-0.0818,0.7562,-0.0577,0.6518,63.09,-29.85,-76.48,63.77,102.25,145.46]],"rear_right":[[-1.2316,-0.7949,0.3966,-0.6209,-0.782,-0.0543,-0.5813,0.5058,-0.6374,23.8,14.19,-51.73,-117.66,-63.25,185.58],[-0.7072,-0.9583,0.1695,-0.0063,-0.9785,0.2059,-0.9875,0.0385,0.1527,-35.03,13.7,-54.72,113.78,-48.55,-36.21],[-0.6966,-0.9528,0.1857,-0.009,-0.9445,0.3284,-0.5749,0.2736,0.7711,-34.25,17.31,-51.27,99.57,-41.3,24.69],[-0.6947,-0.9643,0.1437,0.0229,-0.9759,0.2171,-0.5066,-0.1985,-0.839,-36.5,11.26,-54.15,111.74,-50.99,-105.12],[-2.0073,-0.9592,-0.1403,-0.171,-0.982,-0.0802,-0.4156,-0.0019,0.9096,56.21,-29.15,-54.79,55.96,91.23,150.76],[-2.3189,-0.9062,-0.0935,-0.2034,-0.9779,-0.0487,-0.7163,0.1147,0.6883,64.66,-28.49,-40.91,66.91,84.56,114.65]],"rear_left":[[-1.2316,0.7949,0.3966,-0.6209,0.782,-0.0543,-0.5813,-0.5058,-0.6374,-23.8,14.19,-51.73,117.66,-63.25,-185.58],[-0.7072,0.9583,0.1695,-0.0063,0.9785,0.2059,-0.9875,-0.0385,0.1527,35.03,13.7,-54.72,-113.78,-48.55,36.21],[-0.6966,0.9528,0.1857,-0.009,0.9445,0.3284,-0.5749,-0.2736,0.7711,34.25,17.31,-51.27,-99.57,-41.3,-24.69],[-0.6947,0.9643,0.1437,0.0229,0.9759,0.2171,-0.5066,0.1985,-0.839,36.5,11.26,-54.15,-111.74,-50.99,105.12],[-2.0073,0.9592,-0.1403,-0.171,0.982,-0.0802,-0.4156,0.0019,0.9096,-56.21,-29.15,-54.79,-55.96,91.23,-150.76],[-2.3189,0.9062,-0.0935,-0.2034,0.9779,-0.0487,-0.7163,-0.1147,0.6883,-64.66,-28.49,-40.91,-66.91,84.56,-114.65]]}'''                                 # per robot, in welding order: [p (3), n (3), x (3), seed q (6, deg)], car frame
+
+
+def _gbox(c, s):
+    c = np.array(c, float); h = np.array(s, float) / 2
+    v = np.array([[x, y, z] for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)], float) * h + c
+    f = [[0, 1, 3], [0, 3, 2], [4, 6, 7], [4, 7, 5], [0, 4, 5], [0, 5, 1], [2, 3, 7], [2, 7, 6], [0, 2, 6], [0, 6, 4], [1, 5, 7], [1, 7, 3]]
+    return v, np.array(f)
+
+
+def _gcyl(p0, p1, r0, r1=None, n=16):
+    r1 = r0 if r1 is None else r1
+    p0 = np.asarray(p0, float); p1 = np.asarray(p1, float); a = p1 - p0; a = a / np.linalg.norm(a)
+    u = np.cross(a, [0, 0, 1] if abs(a[2]) < 0.9 else [1, 0, 0]); u /= np.linalg.norm(u); w = np.cross(a, u)
+    ang = np.linspace(0, 2 * math.pi, n, endpoint=False); ring = np.cos(ang)[:, None] * u + np.sin(ang)[:, None] * w
+    v = np.vstack([p0 + r0 * ring, p1 + r1 * ring, [p0, p1]]); f = []
+    for k in range(n):
+        k2 = (k + 1) % n
+        f += [[k, k2, n + k2], [k, n + k2, n + k], [2 * n, k2, k], [2 * n + 1, n + k, n + k2]]
+    return v, np.array(f)
+
+
+def gun_meshes():
+    """The C-gun's parts (as the Welding cell model draws it), closed: [(moving?, vertices, faces)]."""
+    K = GUN_K; zb = K[2] + 0.25; xf = K[0] + 0.004; xm = K[0] - 0.004
+    fixed = [_gbox([1.915, 0, 1.97], [0.25, 0.22, 0.30]), _gbox([1.80, 0, 1.97], [0.03, 0.26, 0.34]), _gbox([2.32, 0, zb + 0.04], [0.20, 0.13, 0.11]),
+             _gcyl([2.00, 0, zb + 0.14], [2.42, 0, zb + 0.14], 0.05, n=20), _gcyl([2.42, 0, zb + 0.14], [2.45, 0, zb + 0.14], 0.035),
+             _gcyl([K[0] + 0.09, 0, K[2]], [K[0] + 0.09, 0, zb], 0.024), _gcyl([K[0] + 0.09, 0, K[2]], [xf + 0.02, 0, K[2]], 0.016),
+             _gcyl([xf + 0.02, 0, K[2]], [xf, 0, K[2]], 0.009, 0.005)]
+    moving = [_gcyl([K[0] - 0.09, 0, K[2]], [K[0] - 0.09, 0, zb + 0.03], 0.024), _gcyl([K[0] - 0.09, 0, K[2]], [xm - 0.02, 0, K[2]], 0.016),
+              _gbox([K[0] - 0.09, 0, zb + 0.06], [0.07, 0.11, 0.07]), _gcyl([xm - 0.02, 0, K[2]], [xm, 0, K[2]], 0.009, 0.005)]
+    return [(False, v, f) for v, f in fixed] + [(True, v, f) for v, f in moving]
+
+
+def fk_tool(q, R0, T0):
+    R = np.eye(3); p = np.zeros(3); fr = []
+    for i in range(6):
+        Ri = _rot(W[i], q[i]); p = R @ (QP[i] - Ri @ QP[i]) + p; R = R @ Ri; fr.append((R.copy(), p.copy()))
+    return R @ R0, R @ T0 + p, fr
+
+
+def ik_tool(Rg, pg, q0, R0, T0, iters=80, tol=(3e-4, 1.5e-3)):
+    q = np.array(q0, float)
+    for _ in range(iters):
+        Rt, pt, fr = fk_tool(q, R0, T0)
+        ep = pg - pt; Re = Rg @ Rt.T
+        c = max(-1.0, min(1.0, (np.trace(Re) - 1) / 2)); ang = math.acos(c)
+        er = np.zeros(3) if ang < 1e-9 else ang / (2 * math.sin(ang)) * np.array([Re[2, 1] - Re[1, 2], Re[0, 2] - Re[2, 0], Re[1, 0] - Re[0, 1]])
+        if np.linalg.norm(ep) < tol[0] and np.linalg.norm(er) < tol[1]:
+            return q, True
+        J = np.zeros((6, 6))
+        for i in range(6):
+            Rp, pp = (np.eye(3), np.zeros(3)) if i == 0 else fr[i - 1]
+            w = Rp @ W[i]; J[:3, i] = np.cross(w, pt - (Rp @ QP[i] + pp)); J[3:, i] = w
+        e = np.r_[ep, er * 0.6]
+        dq = J.T @ np.linalg.solve(J @ J.T + 4e-4 * np.eye(6), e)
+        q = np.clip(q + np.clip(dq, -0.25, 0.25), LIM[:, 0], LIM[:, 1])
+    return q, False
+
+
+class SpotCollide(Collide):
+    """The cell's Collide for the spot robots: the robot without the torch and the seam camera, the C-gun (open, the
+    most room it takes) as its tool; the electrode caps (within 3 cm of the contact) touch the sheet by design."""
+    DROP = Collide.DROP | {"torch_tip", "torch_nozzle", "torch_body", "torch_brass", "torch_clamp", "camera_lens", "camera_body"}
+
+    def __init__(self, robot_glb, car_glb):
+        import trimesh
+        super().__init__(robot_glb, car_glb)
+        P = []
+        for moving, v, f in gun_meshes():
+            m = trimesh.Trimesh(v, f, process=False)
+            pts, _ = trimesh.sample.sample_surface(m, max(60, int(m.area / 0.008 ** 2)), seed=2)
+            P.append(pts - ([GUN_OPEN, 0, 0] if moving else 0))
+        P = np.vstack(P); P = P[np.linalg.norm(P - GUN_K, axis=1) > 0.03]
+        keep = ~self.is_tool; old = np.nonzero(keep)[0]
+        remap = -np.ones(len(self.c), int); remap[old] = np.arange(len(old))
+        pm = keep[self.pts_sphere]; pts = self.pts[pm]; ps = remap[self.pts_sphere[pm]]
+        c = self.c[keep]; r = self.r[keep]; link = self.link[keep]
+        q = np.floor(P / 0.015).astype(np.int64); u, inv = np.unique(q, axis=0, return_inverse=True); inv = inv.ravel()
+        gc = np.zeros((len(u), 3)); np.add.at(gc, inv, P); gc /= np.bincount(inv)[:, None]
+        gr = np.zeros(len(u)); np.maximum.at(gr, inv, np.linalg.norm(P - gc[inv], axis=1))
+        self.c = np.vstack([c, gc]); self.r = np.concatenate([r, gr]); self.link = np.concatenate([link, np.full(len(gc), 6)])
+        self.is_tool = np.concatenate([np.zeros(len(c), bool), np.ones(len(gc), bool)])
+        pts = np.vstack([pts, P]); ps = np.concatenate([ps, inv + len(c)])
+        order = np.argsort(ps, kind="stable"); self.pts = pts[order]; self.pts_sphere = ps[order]
+        self.pts_link = self.link[self.pts_sphere]; self.start = np.searchsorted(self.pts_sphere, np.arange(len(self.c) + 1))
+
+
+COLL_SPOT = None            # the spot robots' Collide, once the models are read
+
+
+class SpotCell:
+    """The spot welding cell's programme, planned once: for each robot, its frames (20 Hz) through every spot:
+    (joint angles, how far the gun is open, the weld on?, spots done). The car is pinned at (0, 0, CAR_Z) in the cell's
+    frame."""
+    DT = 0.05
+
+    def __init__(self, robots, log=print):
+        self.R = robots; self.log = log; self.prog = []; self.min_arm = self.min_gun = 9.0; self.fails = []
+        spots = json.loads(SPOTS_CELL)
+        self.spots = {r["name"]: [dict(p=np.array(s[0:3]), n=np.array(s[3:6]), x=np.array(s[6:9]), q=np.radians(s[9:15])) for s in spots.get(r["name"], [])] for r in robots}
+        for r in robots:
+            self.prog.append(self.plan(r))
+        self.length = max(len(p) for p in self.prog) if self.prog else 0
+        self.min_arm = self.min_gun = 9.0                      # what the programme keeps from the car (every 0.1 s)
+        for r, prog in zip(robots, self.prog):
+            for f in prog[::2]:
+                self.clear(r, f[0])
+
+    def clear(self, r, q):
+        if COLL_SPOT is None:
+            return 9.0, 9.0
+        a, g = COLL_SPOT.car_clear(r, q, np.eye(3), np.array([0, 0, CAR_Z]), tool_apart=True)
+        self.min_arm = min(self.min_arm, a); self.min_gun = min(self.min_gun, g)
+        return a, g
+
+    def ok(self, r, q):
+        a, g = self.clear(r, q); return a > SPOT_CLEAR_ARM and g > SPOT_CLEAR_GUN
+
+    def joint_path(self, q0, q1):
+        d = np.abs(q1 - q0); T = max(0.6, float(np.max(d / VMAX)) * 1.5 + 0.3); n = max(2, int(T / self.DT))
+        return [q0 + (q1 - q0) * (s * s * s * (10 - 15 * s + 6 * s * s)) for s in (k / n for k in range(1, n + 1))]
+
+    def path_ok(self, r, path):
+        return all(self.ok(r, q) for q in path[::3] + [path[-1]])
+
+    def pose(self, r, p, Rt, seed):
+        q, ok = ik_tool(r["Rb"].T @ Rt, r["Rb"].T @ (p - r["base"]), seed, GUN_R0, GUN_K)
+        return q if ok else None
+
+    def go(self, r, q0, q1, around):
+        """A collision-free joint move from q0 to q1: straight, or through one of the routes in around (each a list of
+        poses; None where a pose could not be had)."""
+        direct = self.joint_path(q0, q1)
+        if self.path_ok(r, direct):
+            return direct
+        for route in around:
+            if not route or any(v is None for v in route):
+                continue
+            pts = [q0] + list(route) + [q1]; legs = [self.joint_path(a, b) for a, b in zip(pts[:-1], pts[1:])]
+            if all(self.path_ok(r, leg) for leg in legs):
+                return [q for leg in legs for q in leg]
+        self.fails.append((r["name"], "move")); return direct
+
+    def routes(self, r, q0, out0, q1, out1):
+        """Ways round between two poses: further out from the car at either end, the arm folded first, home."""
+        far0 = self.pose(r, out0[0] + 0.35 * out0[1], out0[2], q0) if out0 else None
+        far1 = self.pose(r, out1[0] + 0.35 * out1[1], out1[2], q1) if out1 else None
+        fold0 = r["home"].copy(); fold0[0] = q0[0]; fold1 = r["home"].copy(); fold1[0] = q1[0]
+        return [[far0], [far1], [far0, far1], [fold0], [fold1], [fold0, fold1], [far0, fold0, fold1], [fold0, fold1, far1], [far0, fold0, fold1, far1], [r["home"]]]
+
+    def linear(self, r, p0, p1, Rt, q, seconds):
+        out = []; n = max(2, int(seconds / self.DT))
+        for k in range(1, n + 1):
+            s = k / n; s = s * s * (3 - 2 * s)
+            qq = self.pose(r, p0 + (p1 - p0) * s, Rt, q)
+            if qq is None:
+                self.fails.append((r["name"], "reach")); break
+            out.append(qq); q = qq
+        return out
+
+    def plan(self, r):
+        """Every spot: from 30 cm out (along the sheet's normal) straight in to 12 cm off the edge, on over the edge,
+        touch, close, weld, open, back off the edge and straight out again; between spots, a joint move from out to out
+        (or by way of the robot's home)."""
+        F = []; q = r["home"].copy(); done = 0; out_prev = None
+        add = lambda qs, gun, arc: F.extend((qq.copy(), gun, arc, done) for qq in qs)
+        for s in self.spots[r["name"]]:
+            p = s["p"] + [0, 0, CAR_Z]; n = s["n"]; x = s["x"]; Rt = np.c_[x, np.cross(n, x), n]
+            ps = p - 0.008 * n; choice = None
+            for back in (0.12, 0.16, 0.20, 0.25):                 # how far off the edge the gun starts: the first that keeps it clear
+                pa = p - back * x - 0.008 * n; po = pa + 0.30 * n
+                qa = self.pose(r, pa, Rt, s["q"]); qo = self.pose(r, po, Rt, qa) if qa is not None else None
+                if qa is None or qo is None:
+                    continue
+                way = self.linear(r, po, pa, Rt, qo, 0.7); way += self.linear(r, pa, ps, Rt, way[-1] if way else qa, 0.6)
+                g = min([self.clear(r, qq)[1] for qq in way[::2]] or [0.0])
+                if choice is None or g > choice[0]:
+                    choice = (g, pa, po, qa, qo)
+                if g > 0.008:
+                    break
+            if choice is None:
+                self.fails.append((r["name"], "spot")); continue
+            g, pa, po, qa, qo = choice
+            if g < SPOT_CLEAR_GUN:
+                self.fails.append((r["name"], "spot %d mm" % round(g * 1000)))
+            add(self.go(r, q, qo, self.routes(r, q, out_prev, qo, (po, n, Rt))), GUN_OPEN, 0); q = qo   # to 30 cm out
+            path = self.linear(r, po, pa, Rt, q, 0.7); add(path, GUN_OPEN, 0); q = path[-1] if path else q   # straight in
+            path = self.linear(r, pa, ps, Rt, q, 0.6); add(path, GUN_OPEN, 0); q = path[-1] if path else q   # on over the edge
+            path = self.linear(r, ps, p, Rt, q, 0.15); add(path, GUN_OPEN, 0); q = path[-1] if path else q   # touch
+            for k in range(1, 6):
+                add([q], GUN_OPEN * (1 - k / 5), 0)                                     # close (0.25 s)
+            for k in range(20):
+                add([q], 0.0, 1)                                                         # weld (1 s)
+            done += 1
+            for k in range(1, 6):
+                add([q], GUN_OPEN * k / 5, 0)                                            # open
+            path = self.linear(r, p, ps, Rt, q, 0.15); add(path, GUN_OPEN, 0); q = path[-1] if path else q
+            path = self.linear(r, ps, pa, Rt, q, 0.5); add(path, GUN_OPEN, 0); q = path[-1] if path else q   # off the edge
+            path = self.linear(r, pa, po, Rt, q, 0.6); add(path, GUN_OPEN, 0); q = path[-1] if path else q   # straight out
+            out_prev = (po, n, Rt)
+        add(self.go(r, q, r["home"], self.routes(r, q, out_prev, r["home"], None)), GUN_OPEN, 0)   # home
+        return F
+
+    def robots_clear(self):
+        """The least distance between the robots of each side over the programme (m)."""
+        if COLL_SPOT is None:
+            return None
+        best = 9.0
+        for a, b in ((0, 2), (1, 3)):
+            for k in range(0, self.length, 4):
+                qa = self.prog[a][min(k, len(self.prog[a]) - 1)][0]; qb = self.prog[b][min(k, len(self.prog[b]) - 1)][0]
+                best = min(best, COLL_SPOT.robots_clear(self.R[a], qa, self.R[b], qb))
+        return best
+
+
+class Line:
+    """The line between cars: which sled is in the MIG cell, the car in the spot cell, the spot robots."""
+    def __init__(self, spot):
+        self.spot = spot; self.chain_a = 0; self.a = None; self.b = None
+        self.b_pose = [EXIT_WORLD, 0.0, CAR_Z, 0.0, 0.0, 0.0]                        # (the second sled waits outside at first)
+        self.k = None; self.done = [0] * 4
+        self.q = [r["home"].copy() for r in spot.R] if spot else []; self.gun = [GUN_OPEN] * 4; self.arc = [0] * 4
+
+    def start(self):
+        if self.spot and self.b is not None:
+            self.k = 0; self.done = [0] * 4
+
+    def busy(self):
+        return self.k is not None
+
+    def step(self):
+        if self.k is None or not self.spot:
+            return
+        for i, prog in enumerate(self.spot.prog):
+            if prog:
+                q, g, a, d = prog[min(self.k, len(prog) - 1)]
+                self.q[i] = q; self.gun[i] = g; self.arc[i] = a if self.k < len(prog) else 0; self.done[i] = d
+        self.k += 1
+        if self.k >= self.spot.length:
+            self.k = None; self.arc = [0] * 4
+
+    def fields(self):
+        f = [self.chain_a] + [round(v, 5) for v in self.b_pose]
+        for q in self.q:
+            f += [round(float(x), 2) for x in np.degrees(q)]
+        return f + [round(g, 4) for g in self.gun] + list(self.arc) + list(self.done)   # f[53] .. f[95]
+
+
+LINE = None                 # the line's state from car to car
 # each robot's way of welding each seam, found once with the collision checks (lean across and along the seam in deg,
 # welded from its other end, arm pose to start from[, the torch's clearance where the seam allows no more]): checked
 # again at the start, searched anew only if it fails
@@ -540,12 +809,15 @@ class CarRun:
         self.q = [r["home"].copy() for r in robots]
         self.state = [0] * 4; self.seam = [-1] * 4; self.prog = [0.0] * 4; self.werr = [0.0] * 4; self.laser = [0] * 4
         self.door = [0.0, 0.0]; self.door_to = [0.0, 0.0]          # the way in, the way out: how far each door is up
+        self.line = LINE; self.a_over = None                          # the line (spot cell, the other car); a car in the MIG cell's place
         self.car_x = ENTRY_X
         self.est = (np.eye(3), np.array([STOP_X, 0, CAR_Z])); self.localised = False
         self._last_sensor = [-1.0] * 4
 
     # --- car pose
     def car_true(self):
+        if self.a_over is not None:                                # (the car before this one, moving on to the spot cell)
+            return self.a_over
         return self.Rc, np.array([self.car_x, 0, CAR_Z]) + self.dp
 
     def seam_true(self, i, k):
@@ -568,6 +840,8 @@ class CarRun:
             for k in (0, 1):                                  # the doors move toward where they are sent
                 st = DOOR_V * self.DT; self.door[k] += max(-st, min(st, self.door_to[k] - self.door[k]))
             f += [round(self.door[0], 3), round(self.door[1], 3)]   # f[51], f[52]
+            if self.line is not None:                         # the spot cell: f[53] (which sled is in the MIG cell) .. f[95]
+                self.line.step(); f += self.line.fields()
             self.frames.append(f); self.t += self.DT
 
     def event(self, text):
@@ -605,6 +879,19 @@ class CarRun:
         return (best[1], True) if best else (q, False)
 
     # --- the sled
+    def slide(self, x0, x1, setter, vmax=1.2, acc=0.8):
+        """A sled's move along the rail from x0 to x1 (speeds up, cruises, slows down): setter(x, fraction) each frame."""
+        dist = abs(x1 - x0); ta = vmax / acc; da = 0.5 * acc * ta * ta
+        T = 2 * ta + (dist - 2 * da) / vmax if dist > 2 * da else 2 * math.sqrt(dist / acc)
+        n = max(1, int(T / self.DT))
+        for k in range(1, n + 1):
+            tt = k / n * T
+            if dist > 2 * da:
+                s = 0.5 * acc * tt * tt if tt < ta else (da + vmax * (tt - ta) if tt < T - ta else dist - 0.5 * acc * (T - tt) ** 2)
+            else:
+                th = T / 2; s = 0.5 * acc * tt * tt if tt < th else dist - 0.5 * acc * (T - tt) ** 2
+            setter(x0 + math.copysign(s, x1 - x0), s / max(dist, 1e-9)); self.emit()
+
     def move_car(self, x0, x1, vmax=1.2, acc=0.8, text=None):
         if text:
             self.event(text)
@@ -909,11 +1196,34 @@ class CarRun:
 
     def run(self):
         self.emit()
+        L = self.line
+        if L is not None and L.b is not None:                  # the car in the spot cell leaves through the exit door
+            self.event("Car %d leaves" % L.b)
+            self.open_door(1)
+            def at_b(x, s):
+                L.b_pose[0] = x
+            self.slide(L.b_pose[0], EXIT_WORLD, at_b)
+            self.door_to[1] = 0.0; L.b = None
+        if L is not None and L.a is not None:                  # the car in the MIG cell moves on into the spot cell
+            no, Rc0, pc0 = L.a
+            self.event("Car %d moves on to the spot welding cell" % no)
+            ang0 = np.array([math.atan2(Rc0[1, 0], Rc0[0, 0]), -math.asin(max(-1, min(1, Rc0[2, 0]))), math.atan2(Rc0[2, 1], Rc0[2, 2])])
+            def at_a(x, s):
+                a = ang0 * (1 - s); self.a_over = (rpy(a[2], a[1], a[0]), np.array([x, pc0[1] * (1 - s), CAR_Z + (pc0[2] - CAR_Z) * (1 - s)]))
+            self.slide(pc0[0], CELL_B_X - CELL_A_X, at_a)
+            L.b = no; L.b_pose = [CELL_B_X, 0.0, CAR_Z, 0.0, 0.0, 0.0]; L.chain_a = 1 - L.chain_a; L.a = None
+            self.event("Spot welding cell: car %d on the locating pins" % no)
+        self.a_over = None; self.car_x = ENTRY_X
         self.event("Car %d waits at the door" % self.no)
         self.open_door(0)
         self.move_car(ENTRY_X, STOP_X, text="Car %d comes in" % self.no)
         self.door_to[0] = 0.0                                  # it closes behind the car while the work goes on
-        self.event("Sled stopped; car clamped"); [self.emit() for _ in range(int(1.0 / self.DT))]
+        self.event("Sled stopped; car clamped")
+        if L is not None:
+            L.start()
+            if L.busy():
+                self.event("Spot welding car %d: %d spots" % (L.b, sum(len(v) for v in L.spot.spots.values())))
+        [self.emit() for _ in range(int(1.0 / self.DT))]
         meas = []
         if self.trk.net is not None:
             self.event("Localising the car: each robot reads two reference points")
@@ -944,11 +1254,21 @@ class CarRun:
             else:
                 self.event("No collisions: the robots kept %.1f mm from the car and %.0f mm from each other" % (clr["car_clear_mm"], clr["robot_clear_mm"]))
         [self.emit() for _ in range(int(0.6 / self.DT))]
-        self.open_door(1)
-        self.move_car(STOP_X, EXIT_X, text="Car %d leaves" % self.no)
-        self.door_to = [0.0, 0.0]
-        while self.door[0] > 1e-6 or self.door[1] > 1e-6:          # both doors down before the next car
-            self.emit()
+        if L is not None:                                      # the spot cell finishes its car; this one stays for the next
+            while L.busy():
+                self.emit()
+            if L.b is not None and L.spot is not None:
+                self.event("Car %d spot welded: %d spots" % (L.b, sum(L.done)))
+            self.door_to = [0.0, 0.0]
+            while self.door[0] > 1e-6 or self.door[1] > 1e-6:
+                self.emit()
+            L.a = (self.no,) + tuple(self.car_true())
+        else:
+            self.open_door(1)
+            self.move_car(STOP_X, EXIT_X, text="Car %d leaves" % self.no)
+            self.door_to = [0.0, 0.0]
+            while self.door[0] > 1e-6 or self.door[1] > 1e-6:          # both doors down before the next car
+                self.emit()
         Re, pe = self.est
         return dict(car=self.no, cycle_s=round(self.t, 1), seams=len(self.welds), seams_ok=ok, worst_mm=round(worst, 3),
                     mean_mm=round(float(np.mean([w["mean_mm"] for w in self.welds])), 3),
@@ -1146,27 +1466,32 @@ VIEW_ROBOTS = ["front right", "front left", "rear right", "rear left"]
 
 
 class LiveRobot:
-    """What EsaSim's 3D view shows while a run goes on. The Welding cell model block makes the cell one model (the car
-    frame on its sled, the robots, the weld beads and the arcs) and lists what its joints are ("joints_layout", "beads",
-    "arcs"); this block sends on channel "joints" the angles of the sled, the car and every robot by position (j1, j2,
-    ...), and by name the weld beads (each piece of a seam rises from under the floor onto the car as the torch passes
-    it, and stays there, dark, until the car has left) and the arcs (a glow at the wire while a robot welds). On channel
-    "scene", nothing for a model with the rail and the bases in it."""
+    """What EsaSim's 3D view shows while a run goes on. The Welding cell model block makes the line one model (the two
+    cars on their sleds, the MIG robots, the spot robots with their guns, the weld beads, the spot marks, the arcs and
+    the doors) and lists what its joints are ("joints_layout", "beads", "marks", "arcs", "chains", "cells"); this block
+    sends on channel "joints" the angles of the sleds, the cars and every robot by position (j1, j2, ...), and by name
+    the weld beads (each piece of a seam rises from under the floor onto its car as the torch passes it, and stays there
+    until that car is out of the line), the spot marks (likewise, as each spot is welded), the arcs (a glow while a
+    robot welds), the guns (how far open) and the doors. Frames hold the car in the MIG cell (in its frame), which sled
+    it is on (f[53]), the other car (f[54:60], on the rail), the spot robots and their guns (f[60:96])."""
     FAR = 1000.0
 
     def __init__(self, robots, which, model=None):
         self.R = robots
-        names = [r["name"].replace("_", " ") for r in robots]
+        names = [r["name"].replace("_", " ") for r in robots]; self.names = names
+        snames = ["spot " + n for n in names]; self.snames = snames
         model = model or {}
         self.layout = model.get("joints_layout")
         self.hide = float(model.get("hide", 5.0))
+        self.xa = float((model.get("cells") or {}).get("mig") or 0.0)
+        self.chains = model.get("chains") or ["car"]
         if self.layout:
-            shown = sorted({j.split(":")[0] for j in self.layout if ":" in j and not j.startswith(("car", "bead", "arc", "static", "door"))},
+            shown = sorted({j.split(":")[0] for j in self.layout if ":" in j and not j.startswith(("car", "bead", "arc", "static", "door", "gun", "mark", "spot"))},
                            key=lambda n: names.index(n) if n in names else 9)
             self.show = [names.index(n) for n in shown if n in names]
         else:                                                      # an older model: the car, then one robot (j7-j12)
             self.show = [VIEW_ROBOTS.index(which) if which in VIEW_ROBOTS else 0]
-        # the weld beads, by robot and seam: (joint name, where the piece ends along the seam as this robot welds it)
+        # the weld beads, by sled, robot and seam: (joint name, where the piece ends along the seam as this robot welds it)
         self.beads = {}
         Lm = {}                                                    # each seam's length in the model
         for b in model.get("beads") or []:
@@ -1180,49 +1505,84 @@ class LiveRobot:
                 continue
             sm = robots[i]["seams"][k]; L = sm["length"]; u0, u1 = b["s0"] / Lm[(b["robot"], b["seam"])], b["s1"] / Lm[(b["robot"], b["seam"])]
             s_end = L * ((1 - u0) if sm.get("reversed") else u1)                   # (a reversed seam is welded from its other end)
-            self.beads.setdefault((i, k), []).append((b["joint"].lower(), s_end))
-        self.arcs = {names.index(n): (a["joint"].lower(), float(a["on"])) for n, a in (model.get("arcs") or {}).items() if n in names}
-        self.all_beads = [j for v in self.beads.values() for j, _ in v]
-        has_rail = any(j.startswith("static:rail") for j in (self.layout or []))
-        self.doors = [j.lower() for j in (self.layout or []) if j.lower() in ("door:in", "door:out")]   # the hall's doors, if the model has them
+            self.beads.setdefault((int(b.get("chain", 0)), i, k), []).append((b["joint"].lower(), s_end))
+        self.marks = {}                                            # the spot marks, by sled and spot robot: [(spot no, joint)]
+        for m in model.get("marks") or []:
+            if m["robot"] in snames:
+                self.marks.setdefault((int(m["chain"]), snames.index(m["robot"])), []).append((int(m["k"]), m["joint"].lower()))
+        arcs = model.get("arcs") or {}
+        self.arcs = {names.index(n): (a["joint"].lower(), float(a["on"])) for n, a in arcs.items() if n in names}
+        self.sarcs = {snames.index(n): (a["joint"].lower(), float(a["on"])) for n, a in arcs.items() if n in snames}
+        lay = [j.lower() for j in (self.layout or [])]
+        self.guns = {i: "gun:%s" % n for i, n in enumerate(snames) if "gun:%s" % n in lay}
+        has_rail = any(j.startswith("static:rail") for j in lay)
+        self.doors = [j for j in lay if j in ("door:in", "door:out")]   # the hall's doors, if the model has them
         self.static = [] if has_rail else [dict(kind="box", center=[0, 0, 0.16], size=[24, 0.22, 0.32], color="#b3141c")]   # (an older model)
-        for i, r in enumerate(robots):
-            if i not in self.show:
+        if not self.layout:
+            for i, r in enumerate(robots):
+                if i in self.show:
+                    continue
                 b = r["base"]; self.static.append(dict(kind="box", center=[float(b[0]), float(b[1]), float(b[2]) / 2], size=[0.9, 0.9, float(b[2])], color="#4a4f57"))
-        self.names = names
-        self.reset()
+        self.welded = {}; self.marked = {}; self.clear = {}; self.sent = 0; self.chain_a = None
 
     def reset(self):
-        """A new car: every bead back under the floor."""
-        self.welded = set(); self.sent = 0; self.clear = 3
+        """(A new car to play: what it changes on the line, a new car on a sled, is seen in its frames.)"""
+
+    def _chain_a(self, f):
+        return int(f[53]) if len(f) > 95 and len(self.chains) > 1 else 0
 
     def named(self, f):
         d = {}
-        if self.clear:                                       # the new car's seams bare (sent a few times, in case one is missed)
-            self.clear -= 1
-            d.update({j: 0.0 for j in self.all_beads})
+        ca = self._chain_a(f)
+        if ca != self.chain_a:                                 # a new car on this sled: its seams and its spots bare
+            self.chain_a = ca; self.welded[ca] = set(); self.marked[ca] = set(); self.clear[ca] = 3
+        for c in list(self.clear):
+            if self.clear[c] > 0:                              # (sent a few times, in case one is missed)
+                self.clear[c] -= 1
+                d.update({j: 0.0 for (cc, i, k), v in self.beads.items() if cc == c for j, _ in v})
+                d.update({j: 0.0 for (cc, i), v in self.marks.items() if cc == c for _, j in v})
         new = []
+        wa = self.welded.setdefault(ca, set())
         for i in range(len(self.R)):
             k = int(f[35 + i])
             if k < 0:
                 continue
             L = self.R[i]["seams"][k]["length"]; done = f[39 + i] * L
-            for j, s_end in self.beads.get((i, k), []):
-                if j not in self.welded and (f[31 + i] == 3 or f[39 + i] >= 1.0) and s_end <= done + 0.004:
-                    self.welded.add(j); new.append(j)
+            for j, s_end in self.beads.get((ca, i, k), []):
+                if j not in wa and (f[31 + i] == 3 or f[39 + i] >= 1.0) and s_end <= done + 0.004:
+                    wa.add(j); new.append(j)
+        if len(f) > 95 and len(self.chains) > 1:
+            cb = 1 - ca; mb = self.marked.setdefault(cb, set())
+            for i in range(4):
+                for kk, j in self.marks.get((cb, i), []):
+                    if kk < int(f[92 + i]) and j not in mb:
+                        mb.add(j); new.append(j)
         self.sent += 1
-        for j in (self.welded if self.sent % 20 == 0 else new):          # now and then all of them, for a view opened late
+        if self.sent % 20 == 0:                                # now and then all of them, for a view opened late
+            new = [j for s in self.welded.values() for j in s] + [j for s in self.marked.values() for j in s]
+        for j in new:
             d[j] = self.hide
         for i, (j, on) in self.arcs.items():
             d[j] = on if f[31 + i] == 3 else 0.0
+        if len(f) > 95:
+            for i, (j, on) in self.sarcs.items():
+                d[j] = on if f[88 + i] else 0.0
+            for i, j in self.guns.items():
+                d[j] = f[84 + i]
         if len(f) > 52:
             for j in self.doors:
                 d[j] = f[51] if j == "door:in" else f[52]
         return d
 
     def joints(self, f):
-        a = math.degrees(math.asin(f[1] / self.FAR)); b = math.degrees(math.asin(-f[2] / self.FAR)); c = math.degrees(f[4])
-        car = {"car:x": round(a, 10), "car:y": round(b, 10), "car:yaw": round(c, 6), "car:-yaw": round(-c, 6), "car:-y": round(-b, 10), "car:-x": round(-a, 10)}
+        ca = self._chain_a(f); car = {}
+        for c, ch in enumerate(self.chains):
+            if c == ca:
+                x, y, yaw = f[1] + self.xa, f[2], f[4]
+            else:
+                x, y, yaw = (f[54], f[55], f[57]) if len(f) > 95 else (EXIT_WORLD, 0.0, 0.0)
+            a = math.degrees(math.asin(x / self.FAR)); b = math.degrees(math.asin(-y / self.FAR)); cc = math.degrees(yaw)
+            car.update({ch + ":x": round(a, 10), ch + ":y": round(b, 10), ch + ":yaw": round(cc, 6), ch + ":-yaw": round(-cc, 6), ch + ":-y": round(-b, 10), ch + ":-x": round(-a, 10)})
         if not self.layout:
             d = {"j%d" % (k + 1): car[n] for k, n in enumerate(["car:x", "car:y", "car:yaw", "car:-yaw", "car:-y", "car:-x"])}
             for k, v in enumerate(f[7 + 6 * self.show[0]: 13 + 6 * self.show[0]]):
@@ -1234,14 +1594,18 @@ class LiveRobot:
                 v = car[role]
             elif role == "fixed":
                 v = 0.0
-            elif role.startswith(("bead:", "arc:", "static:", "door:")):
-                continue                                     # by name (the beads, the arcs), or never moved (the rail, the bases)
+            elif role.startswith(("bead", "arc:", "static:", "door:", "gun:", "mark")):
+                continue                                     # by name (beads, marks, arcs, guns, doors), or never moved
             else:
-                rname, what = role.split(":"); i = self.names.index(rname)
+                rname, what = role.split(":")
+                spot = rname.startswith("spot ")
+                i = (self.snames if spot else self.names).index(rname); base = 60 if spot else 7
                 if what in ("yaw", "-yaw"):
                     v = round(math.degrees(self.R[i]["yaw"]) * (1 if what == "yaw" else -1), 6)
+                elif spot and len(f) <= 95:
+                    v = 0.0
                 else:
-                    k = int(what[-1]) - 1; v = round(float(f[7 + 6 * i + k]) * (-1 if what.startswith("-") else 1), 2)
+                    k = int(what[-1]) - 1; v = round(float(f[base + 6 * i + k]) * (-1 if what.startswith("-") else 1), 2)
             d["j%d" % (n + 1)] = v
         nm = self.named(f)
         if nm:
@@ -1249,7 +1613,7 @@ class LiveRobot:
         return d
 
     def scene(self, f, dx):
-        return {"units": "m", "objects": list(self.static)}       # the sled, the car, its welds and the robots are in the model
+        return {"units": "m", "objects": list(self.static)}       # the sleds, the cars, the welds and the robots are in the model
 
 
 def model_layout(ctx):
@@ -1260,7 +1624,7 @@ def model_layout(ctx):
             raw = open(f.path, "rb").read()
             m = json.loads(gzip.decompress(raw) if str(f.name).endswith(".gz") else raw)
             if m.get("joints_layout"):
-                return {k: m.get(k) for k in ("joints_layout", "beads", "arcs", "hide")}
+                return {k: m.get(k) for k in ("joints_layout", "beads", "arcs", "hide", "marks", "spot_robots", "chains", "cells")}
         except Exception as e:
             ctx.log("[3d] could not read %s: %r" % (f.name, e))
     return None
@@ -1508,8 +1872,24 @@ def produce(ctx, p, robots, layout, scene):
 
 
 # ===================================================================================================== entry
+def spot_cell_robots():
+    """The spot welding cell's robots (in its own frame: the same places as the MIG cell's), each with a home that keeps
+    the gun clear of the car's way along the rail."""
+    out = []
+    for name, bx, by, bz, quarter in ROBOT_DEFS:
+        base = np.array([bx, by, bz]); yaw = math.atan2(-by, math.copysign(1.0, bx) - bx); Rb = rz(yaw)
+        home = HOME.copy(); best = None
+        for a1 in (-50, -30, 30, 50):
+            home[0] = math.radians(a1); _, p, _ = fk_tool(home, GUN_R0, GUN_K); pw = Rb @ p + base
+            if best is None or abs(pw[1]) > best[0]:
+                best = (abs(pw[1]), a1)
+        home[0] = math.radians(best[1])
+        out.append(dict(name=name, base=base, yaw=yaw, Rb=Rb, home=home, quarter=quarter, seams=[]))
+    return out
+
+
 def run(ctx):
-    global COLL
+    global COLL, COLL_SPOT, LINE
     p = ctx.params
     files = list(ctx.inputs.get("models") or [])
     glbs = [f for f in files if str(f.name).lower().endswith(".glb")]
@@ -1522,6 +1902,16 @@ def run(ctx):
             ctx.log("[collide] no collision checks: %r" % e); COLL = None
     else:
         ctx.log("[collide] no robot and car models wired in: no collision checks")
+    if rf is not None and cf is not None:
+        try:
+            COLL_SPOT = SpotCollide(rf.path, cf.path)
+        except Exception as e:
+            ctx.log("[spot] no collision checks for the spot guns: %r" % e); COLL_SPOT = None
+    t0 = time.time(); spot = SpotCell(spot_cell_robots(), ctx.log); LINE = Line(spot)
+    rc = spot.robots_clear()
+    ctx.log("[spot] %d spots planned in %.0f s: the arms %.0f mm and the guns %.1f mm from the car at the closest%s%s"
+            % (sum(len(v) for v in spot.spots.values()), time.time() - t0, spot.min_arm * 1000, spot.min_gun * 1000,
+               ", the robots %.0f mm apart" % (rc * 1000) if rc is not None else "", (": %s" % spot.fails) if spot.fails else ""))
     t0 = time.time(); robots = load_cell(); layout = layout_item(robots)
     ctx.log("[plan] %d seams planned in %.0f s: %s" % (sum(len(r["seams"]) for r in robots), time.time() - t0,
                                                      ", ".join("%s %s %s" % (r["name"], sm["name"], sm["taught"]) for r in robots for sm in r["seams"] if sm["plan_fails"])
