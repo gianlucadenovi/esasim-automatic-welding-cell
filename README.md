@@ -61,6 +61,7 @@ An [EsaSim](https://esacode.com/) project of the workspace Gianluca De Novi's wo
 The files the project's views draw with (3D models, textures, sounds), in [assets/](assets/):
 
 - [textures/esacode-logo.png](assets/textures/esacode-logo.png) · 25 KB
+- [textures/smoke_puff.jpg](assets/textures/smoke_puff.jpg) · 2.2 KB
 - [views/robot_cell_viewer.js](assets/views/robot_cell_viewer.js) · 905 KB
 
 ### Files the blueprints make

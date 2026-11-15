@@ -41,6 +41,13 @@
             "in": "repo"
         },
         {
+            "path": "textures/smoke_puff.jpg",
+            "size": 2278,
+            "sha256": "a56a1519276a2dca64576d26fd2ce729898eb722a1854efae4c14020f195c00f",
+            "zip": "assets/textures/smoke_puff.jpg",
+            "in": "repo"
+        },
+        {
             "path": "views/robot_cell_viewer.js",
             "size": 926912,
             "sha256": "75e41a262afa61666c31d352f44ea159be69bd31e1979e046b82b8d4f44e7c4c",
@@ -48,5 +55,5 @@
             "in": "repo"
         }
     ],
-    "saved": "2026-11-15T08:40:29+00:00"
+    "saved": "2026-11-15T08:45:26+00:00"
 }
