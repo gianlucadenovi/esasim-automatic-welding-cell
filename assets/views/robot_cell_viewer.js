@@ -822,9 +822,11 @@ Object.keys(RFX.arcs).forEach(function (k) { if (!live[k]) { RFX.arcs[k].glow.vi
 rfxHiss();
 if (RFX.sparks) rfxStepSparks(RFX.sparks, dt);
 if (RFX.smoke) rfxStepSmoke(RFX.smoke, dt);
-rfxHall(); rfxCube();
+rfxHall(); rfxCube(anyArc);
 }
-function rfxCube() {
+function rfxCube(busy) {
+if (busy && RFX.cubeOk) return;
+if (RFX.cube && RFX.cube.face === 5) RFX.cubeOk = true;
 if (quality === 'fast') return;
 var meshes = []; units().forEach(function (U) { if (U.arm && U.arm.userData.cube) meshes = meshes.concat(U.arm.userData.cube); });
 if (!meshes.length) return;
