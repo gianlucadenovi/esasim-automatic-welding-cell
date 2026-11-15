@@ -2,13 +2,13 @@
 
 The welding cell for EsaSim's 3D view: the four KUKA KR 210 robots with their swan-neck torches and the car body frame on its sled, one model with each part in its own material.
 
-Wire the welding-cell-models dataset to Models and the Robot model output to a 3D view and to the Welding cell block's Robot model input (so the welding starts after it); wire the Welding cell block's telemetry to the same view (channels joints, scene, event). The cell is one model: the view moves the sled and the car (joints 1-6) and every robot (its heading, axes A1-A6, then the same undone before the next robot) with the angles of the joints channel; the model's joint list tells the Welding cell block what each angle is. Parts keep their glTF materials (orange castings, black motors, steel base, brass, nozzle and copper of the torch, the seam camera), and their sharp edges.
+Wire the welding-cell-models dataset to Models and the Robot model output to a 3D view and to the Welding cell block's Robot model input (so the welding starts after it); wire the Welding cell block's telemetry to the same view (channels joints, scene, event). The cell is one model: the view moves the sled and the car (joints 1-6) and every robot (its heading, axes A1-A6, then the same undone before the next robot) with the angles of the joints channel; the model's joint list tells the Welding cell block what each angle is. Parts keep their glTF materials (orange castings, black motors, steel base, brass, nozzle and copper of the torch, the seam camera; the car frame's glossy silver), and their sharp edges; the car frame's open panels show from both sides.
 
 An [EsaSim](https://esacode.com/) blueprint block: it runs on a machine, in Python (`backend.py`, `def run(ctx)`).
 
 | | |
 |---|---|
-| Block | `ws-welding-robot-model` · version 3 |
+| Block | `ws-welding-robot-model` · version 4 |
 | Workspace | Gianluca De Novi's workspace |
 | Author | Gianluca De Novi |
 | Runs on | Any machine |
@@ -29,9 +29,9 @@ An [EsaSim](https://esacode.com/) blueprint block: it runs on a machine, in Pyth
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `robot` Robots | select | `"all four"` | All four needs a 3D view that reads more than 12 joints |
+| `robot` Robots | select | `"all four"` |  |
 | `triangles` Robot: triangles at most | number | `40000` |  |
-| `car_triangles` Car frame: triangles at most | number | `40000` |  |
+| `car_triangles` Car frame: triangles at most | number | `0` | 0: the whole frame as it is in the GLB |
 
 ## Use it in EsaSim
 

@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell model (ws-welding-robot-model) · version 3 · machine block, Python: def run(ctx)
+# Welding cell model (ws-welding-robot-model) · version 4 · machine block, Python: def run(ctx)
 # The welding cell for EsaSim's 3D view: the four KUKA KR 210 robots with their swan-neck torches and the car body frame on its sled, one model with each part in its own material.
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -12,7 +12,7 @@
 # Settings ctx.params["key"]
 #   robot       select    Robots = "all four" of all four | front right | front left | rear right | rear left
 #   triangles   number    Robot: triangles at most = 40000
-#   car_triangles number    Car frame: triangles at most = 40000
+#   car_triangles number    Car frame: triangles at most = 0
 # Runs on  Any machine. Return a dict to fill the "result" output.
 # Packages numpy, trimesh, fast-simplification (installed by the worker with pip when missing)
 # EsaSim rewrites these lines from the block's definition each time it is saved: change the definition, not them.
@@ -35,7 +35,8 @@ The Welding cell block sends every angle on its joints channel (j1, j2, ... in d
 
 From kr210_weld.glb (the rigged robot with its swan-neck MIG torch, wire feeder and seam camera) the robot is cut
 into its links and colours, simplified to keep the file small, its vertices split at sharp edges so the castings keep
-their edges. The car frame is s15_frame.glb (any other .glb of the dataset). Without the GLBs, boxes stand in.
+their edges. The car frame is s15_frame.glb (any other .glb of the dataset), whole and in its own material; its open
+sheet-metal panels get a back copy so they show from both sides. Without the GLBs, boxes stand in.
 Each part carries its glTF material: colour, metalness and roughness (steel and copper metallic, castings painted).
 Finishes in seconds, so the view has the model while the welding cell runs beside it.
 """
@@ -58,6 +59,9 @@ BOXES = {"base": ([0, 0.06, 0.17], [1.0, 1.1, 0.4], "#2a2c30"), "a1": ([0.02, 0.
          "a2": ([0.35, -0.21, 1.23], [0.53, 0.44, 1.5], "#f26a0c"), "a3": ([0.63, 0.03, 1.9], [1.44, 0.69, 0.65], "#f26a0c"),
          "a4": ([1.18, -0.01, 1.82], [0.92, 0.22, 0.27], "#f26a0c"), "a5": ([1.6, 0.02, 1.78], [0.34, 0.33, 0.24], "#f26a0c"),
          "a6": ([2.1, 0.06, 1.75], [0.6, 0.2, 0.2], "#2f3238")}
+
+
+CAR_MAT = ("#c3c8cf", 0.75, 0.32)      # bare steel, when no car GLB gives its own
 
 
 def box_mesh(c, s):
@@ -143,11 +147,20 @@ def run(ctx):
         sc = trimesh.load(cf[0].path, force="scene"); Ry = trimesh.transformations.rotation_matrix(-math.pi / 2, [0, 1, 0]); ms = []
         for node in sc.graph.nodes_geometry:
             T, gname = sc.graph[node]; m = sc.geometry[gname].copy(); m.apply_transform(Ry @ T); ms.append(m)     # front from -Z to +X
-        m = crisp(trimesh, simplify(trimesh, trimesh.util.concatenate(ms), int(p.get("car_triangles", 40000))))
-        car = (np.asarray(m.vertices) @ C + [0, 0, CAR_Z], np.asarray(m.faces))
-        ctx.log("[model] car frame from %s: %d triangles" % (cf[0].name, len(car[1])))
+        car_mat = colour(sc.geometry[next(iter(sc.geometry))]) if sc.geometry else CAR_MAT
+        m = trimesh.util.concatenate(ms); m.merge_vertices()
+        n_t = int(p.get("car_triangles", 0) or 0)
+        if n_t:
+            m = simplify(trimesh, m, n_t)
+        m = crisp(trimesh, m)
+        # the frame is open sheet metal (a double-sided material in the GLB): a back copy of every panel, with its own
+        # vertices, so each panel shows from both sides (the view draws one side of a face only)
+        back = m.copy(); back.invert()
+        v = np.vstack([m.vertices, back.vertices]); f = np.vstack([m.faces, np.asarray(back.faces) + len(m.vertices)])
+        car = (v @ C + [0, 0, CAR_Z], f)
+        ctx.log("[model] car frame from %s: %d triangles (both sides), %s" % (cf[0].name, len(f), car_mat))
     else:
-        car = box_mesh([-0.05, 0, CAR_Z + 0.1], [4.85, 1.9, 1.3])
+        car = box_mesh([-0.05, 0, CAR_Z + 0.1], [4.85, 1.9, 1.3]); car_mat = CAR_MAT
     sled = box_mesh([0, 0, 0.44], [4.4, 1.25, 0.12])
 
     links = [{}]; joints = []; layout = []                 # link 0: nothing (every part rides on a joint)
@@ -167,7 +180,7 @@ def run(ctx):
     O = [np.array([0.0, FAR, 0.0]), np.array([FAR, 0.0, 0.0]), np.zeros(3)]
     joint(O[0], [0, 0, 1], "car:x", (sled[0] - O[0], sled[1]), ("#2b2f36", 0.5, 0.45))
     joint(O[1], [0, 0, 1], "car:y")
-    joint(O[2], [0, 0, 1], "car:yaw", (car[0] - O[2], car[1]), ("#c3c8cf", 0.75, 0.32))      # bare steel
+    joint(O[2], [0, 0, 1], "car:yaw", (car[0] - O[2], car[1]), car_mat)      # the GLB's own material
     joint(O[2], [0, 0, 1], "car:-yaw"); joint(O[1], [0, 0, 1], "car:-y"); joint(O[0], [0, 0, 1], "car:-x")
     for ri, (name, bx, by, bz, aim) in enumerate(robots):
         base = np.array([bx, by, bz]); yaw = math.atan2(-by, aim - bx)
