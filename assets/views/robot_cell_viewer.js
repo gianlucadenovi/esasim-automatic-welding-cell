@@ -728,7 +728,7 @@ S.mesh.geometry.attributes.position.needsUpdate = true; S.mesh.geometry.attribut
 function rfxSmoke() {
 if (RFX.smoke) return RFX.smoke;
 RFX.smokeTex = RFX.smokeTex || rfxTex('rgba(255,255,255,0.9)', 'rgba(235,238,242,0.35)', 0.45);
-if (!RFX.smokeAsk) { RFX.smokeAsk = true; fromProject(['smoke_puff.jpg'], 'url', function (u) { new THREE.TextureLoader().load(u, function (tx) { RFX.smokeImg = tx; if (RFX.smoke) RFX.smoke.list.forEach(function (p) { p.s.material.map = tx; p.s.material.alphaMap = tx; p.s.material.needsUpdate = true; }); }); }, function () { }); }
+if (!RFX.smokeAsk) { RFX.smokeAsk = true; fromProject(['smoke_puff.jpg'], 'buffer', function (buf) { var u = URL.createObjectURL(new Blob([buf], { type: 'image/jpeg' })); new THREE.TextureLoader().load(u, function (tx) { RFX.smokeImg = tx; if (RFX.smoke) RFX.smoke.list.forEach(function (p) { p.s.material.map = tx; p.s.material.alphaMap = tx; p.s.material.needsUpdate = true; }); }); }, function () { }); }
 var list = [];
 for (var k = 0; k < (quality === 'fast' ? 60 : 160); k++) {
 var s = new THREE.Sprite(new THREE.SpriteMaterial({ map: RFX.smokeImg || RFX.smokeTex, alphaMap: RFX.smokeImg || null, color: 0xf2f4f6, transparent: true, opacity: 0, depthWrite: false }));
@@ -910,6 +910,22 @@ Object.keys(RFX.arcs).forEach(function (k, n) { RFX.arcs[k].light.intensity = al
 hid.forEach(function (o) { o.visible = true; });
 if (++K.face === 6) { K.face = 0; K.rt.texture.needsPMREMUpdate = true; }
 }
+// the sign on the hall's long walls: the esacode logo and the name (the model's hall.logo), lit a little from behind
+function rfxSign(hall, H, xc, zN, zS) {
+var name = H.logo || 'EsaSim';
+var c = document.createElement('canvas'); c.width = 2048; c.height = 512; var g = c.getContext('2d');
+var tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 8;
+function paint(img) {
+g.clearRect(0, 0, 2048, 512); g.font = '700 300px "Segoe UI", "Helvetica Neue", Arial, sans-serif'; g.textBaseline = 'middle'; g.fillStyle = '#ffffff';
+var tw = g.measureText(name).width, iw = img ? 440 : 0, gap = img ? 60 : 0, x = (2048 - iw - gap - tw) / 2;
+if (img) g.drawImage(img, x, 36, 440, 440);
+g.fillText(name, x + iw + gap, 270); tx.needsUpdate = true;
+}
+paint(null);
+fromProject(['esacode_logo_white.png'], 'buffer', function (buf) { var im = new Image(); im.onload = function () { paint(im); }; im.src = URL.createObjectURL(new Blob([buf], { type: 'image/png' })); }, function () { });
+var mat = new THREE.MeshStandardMaterial({ map: tx, transparent: true, roughness: 0.55, metalness: 0.1, emissive: 0xffffff, emissiveMap: tx, emissiveIntensity: 0.35, depthWrite: false });
+[[zN + 0.03, 0], [zS - 0.03, Math.PI]].forEach(function (p) { var s = new THREE.Mesh(new THREE.PlaneGeometry(8, 2), mat); s.position.set(xc, 5.2, p[0]); s.rotation.y = p[1]; hall.add(s); });
+}
 function rfxHall() {
 var U0 = firstUnit(), H = U0 && U0.model && U0.model.hall;
 if (!H || !H.x || !H.y) { if (RFX.hall) { RFX.hall.visible = false; ground.visible = true; } return; }
@@ -919,11 +935,18 @@ if (RFX.hall) scene.remove(RFX.hall);
 RFX.hallKey = key;
 var x0 = +H.x[0], x1 = +H.x[1], zN = -(+H.y[1]), zS = -(+H.y[0]), Hh = +H.height || HALL_H, xc = (x0 + x1) / 2, zc = (zN + zS) / 2, LX = x1 - x0, BD = zS - zN;
 var T = hallTextures(), hall = RFX.hall = new THREE.Group(); hall.name = 'robot-hall';
-var wallMat = new THREE.MeshStandardMaterial({ map: T.wall, roughness: 0.82, metalness: 0.15, emissiveMap: T.wall, emissive: 0x4a4f57, emissiveIntensity: 0.55 });
-[[xc, zN, 0, LX], [xc, zS, Math.PI, LX], [x0, zc, Math.PI / 2, BD], [x1, zc, -Math.PI / 2, BD]].forEach(function (w) {   // each faces the hall
-var sh = new THREE.Shape(); sh.moveTo(-w[3] / 2, 0); sh.lineTo(w[3] / 2, 0); sh.lineTo(w[3] / 2, Hh); sh.lineTo(-w[3] / 2, Hh); sh.closePath();
+var wallMat = new THREE.MeshStandardMaterial({ map: T.wall, roughness: 0.82, metalness: 0.15, emissiveMap: T.wall, emissive: 0x4a4f57, emissiveIntensity: 0.55, side: THREE.DoubleSide });
+[[xc, zN, 0, LX, 'n'], [xc, zS, Math.PI, LX, 's'], [x0, zc, Math.PI / 2, BD, 'w'], [x1, zc, -Math.PI / 2, BD, 'e']].forEach(function (w) {   // each faces the hall
+var ds = (H.doors || []).filter(function (d) { return w[4] === 'w' ? Math.abs(d.x - x0) < 0.3 : w[4] === 'e' ? Math.abs(d.x - x1) < 0.3 : w[4] === 'n' ? Math.abs(d.y - (+H.y[1])) < 0.3 : Math.abs(d.y - (+H.y[0])) < 0.3; })
+.map(function (d) { var c = w[4] === 'w' ? +d.y : w[4] === 'e' ? -d.y : w[4] === 'n' ? +d.x : -d.x; return [c - d.w / 2, c + d.w / 2, +d.h]; }).sort(function (a, b) { return a[0] - b[0]; });
+var sh = new THREE.Shape(); sh.moveTo(-w[3] / 2, 0); ds.forEach(function (d) { sh.lineTo(d[0], 0); sh.lineTo(d[0], d[2]); sh.lineTo(d[1], d[2]); sh.lineTo(d[1], 0); }); sh.lineTo(w[3] / 2, 0); sh.lineTo(w[3] / 2, Hh); sh.lineTo(-w[3] / 2, Hh); sh.closePath();
 var m = new THREE.Mesh(new THREE.ShapeGeometry(sh), wallMat); m.receiveShadow = true; m.position.set(w[0], 0, w[1]); m.rotation.y = w[2]; hall.add(m);
 });
+(H.doors || []).forEach(function (d) {                         // outside each door: a concrete apron the rail runs out on
+var out = d.x < xc ? -1 : 1, A = +H.apron || 8, wd = Math.max(8, d.w + 4);
+var ap = new THREE.Mesh(new THREE.PlaneGeometry(A, wd), new THREE.MeshStandardMaterial({ color: 0x46494d, roughness: 0.95, metalness: 0 })); ap.rotation.x = -Math.PI / 2; ap.position.set(+d.x + out * A / 2, -0.002, -d.y); ap.receiveShadow = true; hall.add(ap);
+});
+rfxSign(hall, H, xc, zN, zS);
 var rg = new THREE.PlaneGeometry(LX, BD); rg.rotateX(Math.PI / 2);                                 // the roof, seen from below only
 var rt = T.roof.clone(); rt.needsUpdate = true; rt.repeat.set(LX / 12, BD / 12);
 var roof = new THREE.Mesh(rg, new THREE.MeshStandardMaterial({ map: rt, roughness: 0.9, metalness: 0.2 })); roof.position.set(xc, Hh, zc); hall.add(roof);
