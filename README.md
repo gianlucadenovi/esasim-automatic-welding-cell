@@ -33,7 +33,7 @@ Learn on the GPU, then run the line car after car, live in 3D.
 
 ## What you get
 
-- On the **View** page: *welding-cell-models (robot, car frame)* (2 · Production line), *The robot's joints and the cell, live* (1 · Learn to follow the seams), *Live: the front right robot welding a car with the network as it learns* (1 · Learn to follow the seams), *Events and scores* (1 · Learn to follow the seams), *Learning curve* (1 · Learn to follow the seams), *Replay: the whole cell, car by car (when the run has finished)* (1 · Learn to follow the seams), *How well the seam camera reads* (1 · Learn to follow the seams), *By joint type* (1 · Learn to follow the seams), *Learning* (1 · Learn to follow the seams), *Events and line numbers, live* (2 · Production line), *Car by car* (2 · Production line), *The welding cell in 3D (the newest five cars)* (2 · Production line).
+- On the **View** page: *welding-cell-models (robot, car frame)* (2 · Production line), *The robot's joints and the cell, live* (2 · Production line), *Live: the front right robot welding a car with the network as it learns* (1 · Learn to follow the seams), *Events and scores* (1 · Learn to follow the seams), *Learning curve* (1 · Learn to follow the seams), *Replay: the whole cell, car by car (when the run has finished)* (1 · Learn to follow the seams), *How well the seam camera reads* (1 · Learn to follow the seams), *By joint type* (1 · Learn to follow the seams), *Learning* (1 · Learn to follow the seams), *Live: the front right robot, car after car* (2 · Production line), *Events and line numbers* (2 · Production line), *Car by car* (2 · Production line).
 
 ## Data and licences
 
@@ -47,8 +47,8 @@ An [EsaSim](https://esacode.com/) project of the workspace Gianluca De Novi's wo
 
 ### Blueprints in this repository
 
-- [1 · Learn to follow the seams](blueprints/1-learn-to-follow-the-seams.json) · 11 blocks · version 3
-- [2 · Production line](blueprints/2-production-line.json) · 9 blocks
+- [1 · Learn to follow the seams](blueprints/1-learn-to-follow-the-seams.json) · 11 blocks · version 4
+- [2 · Production line](blueprints/2-production-line.json) · 12 blocks
 
 ### Workspace blocks it uses
 

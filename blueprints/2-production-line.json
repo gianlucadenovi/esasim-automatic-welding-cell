@@ -6,19 +6,29 @@
     "name": "2 · Production line",
     "description": "Car after car: the sled brings the frame in, the four robots find it with their laser cameras, weld their quarter of it following the seams, and the car slides out for the next one.",
     "published_version": 0,
-    "updated": "2026-11-15 01:09:31",
+    "updated": "2026-11-15 01:58:45",
     "graph": {
         "nodes": [
             {
                 "id": "models",
                 "type": "dataset",
-                "x": -380,
-                "y": 120,
+                "x": -420,
+                "y": 60,
                 "params": {
                     "dataset": "16",
-                    "pattern": "*.glb"
+                    "pattern": "kr210*.glb, s15_frame*.glb"
                 },
                 "title": "welding-cell-models (robot, car frame)"
+            },
+            {
+                "id": "robot_model",
+                "type": "ws-welding-robot-model",
+                "x": 0,
+                "y": -200,
+                "params": {
+                    "robot": "front right"
+                },
+                "title": "The front right robot for the 3D view"
             },
             {
                 "id": "line",
@@ -27,6 +37,8 @@
                 "y": 200,
                 "params": {
                     "mode": "Run the production line",
+                    "accelerator": "auto",
+                    "view_robot": "front right",
                     "cars": 5,
                     "max_minutes": 20,
                     "weld_speed": 80,
@@ -41,6 +53,39 @@
                 "title": "Welding cell: production line"
             },
             {
+                "id": "tel_live",
+                "type": "telemetry",
+                "x": 380,
+                "y": -220,
+                "params": {
+                    "interval": 0.5,
+                    "channels": "joints,scene,event,line",
+                    "keep": 3000
+                },
+                "title": "The robot's joints and the cell, live"
+            },
+            {
+                "id": "live",
+                "type": "viewer-3d",
+                "x": 760,
+                "y": -320,
+                "params": {
+                    "environment": "studio",
+                    "quality": "high",
+                    "floor": true,
+                    "grid": false,
+                    "trails": false,
+                    "live_channel": "none",
+                    "joints_channel": "joints",
+                    "ghost_channel": "none",
+                    "scene_channel": "scene",
+                    "delay": 1.5,
+                    "numbers": "line.cars=Cars, line.seams_ok_pct=Seams OK:%, line.worst_mm=Last car: worst weld:mm, line.cycle_s=Cycle:s, line.cars_per_hour=Cars / hour",
+                    "events_channel": "event"
+                },
+                "title": "Live: the front right robot, car after car"
+            },
+            {
                 "id": "tel",
                 "type": "telemetry",
                 "x": 380,
@@ -50,7 +95,7 @@
                     "channels": "event,line",
                     "keep": 3000
                 },
-                "title": "Events and line numbers, live"
+                "title": "Events and line numbers"
             },
             {
                 "id": "tel_line",
@@ -80,7 +125,7 @@
                     "numbers": "line.cars=Cars, line.seams_ok_pct=Seams OK:%, line.worst_mm=Last car: worst weld:mm, line.cycle_s=Cycle:s, line.cars_per_hour=Cars / hour",
                     "events_channel": "event"
                 },
-                "title": "The welding cell in 3D (the newest five cars)"
+                "title": "Replay: the whole cell, the newest five cars (when the run has finished)"
             },
             {
                 "id": "errors",
@@ -133,6 +178,17 @@
         ],
         "edges": [
             {
+                "id": "models.files>robot_model.models",
+                "from": {
+                    "node": "models",
+                    "port": "files"
+                },
+                "to": {
+                    "node": "robot_model",
+                    "port": "models"
+                }
+            },
+            {
                 "id": "models.files>line.models",
                 "from": {
                     "node": "models",
@@ -141,6 +197,50 @@
                 "to": {
                     "node": "line",
                     "port": "models"
+                }
+            },
+            {
+                "id": "robot_model.robot>live.scene",
+                "from": {
+                    "node": "robot_model",
+                    "port": "robot"
+                },
+                "to": {
+                    "node": "live",
+                    "port": "scene"
+                }
+            },
+            {
+                "id": "robot_model.robot>line.robot",
+                "from": {
+                    "node": "robot_model",
+                    "port": "robot"
+                },
+                "to": {
+                    "node": "line",
+                    "port": "robot"
+                }
+            },
+            {
+                "id": "line.telemetry>tel_live.from",
+                "from": {
+                    "node": "line",
+                    "port": "telemetry"
+                },
+                "to": {
+                    "node": "tel_live",
+                    "port": "from"
+                }
+            },
+            {
+                "id": "tel_live.stream>live.scene",
+                "from": {
+                    "node": "tel_live",
+                    "port": "stream"
+                },
+                "to": {
+                    "node": "live",
+                    "port": "scene"
                 }
             },
             {
