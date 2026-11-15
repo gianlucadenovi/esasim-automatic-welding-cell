@@ -23,7 +23,7 @@ Learn on the GPU, then run the line car after car, live in 3D.
 
 - A machine with the EsaSim worker (Project > Compute); it runs on any machine, faster with: NVIDIA GPU.
 - Data it reads: the dataset **welding-cell-models** of the workspace, read by *welding-cell-models (robot, car frame)*.
-- Python packages, installed by the worker the first time: `numpy`, `trimesh`, `fast-simplification`, `torch`.
+- Python packages, installed by the worker the first time: `numpy`, `trimesh`, `fast-simplification`, `scipy`, `rtree`, `torch`.
 
 ## How to run it
 
@@ -52,7 +52,7 @@ An [EsaSim](https://esacode.com/) project of the workspace Gianluca De Novi's wo
 
 ### Workspace blocks it uses
 
-- [Welding cell model](blocks/ws-welding-robot-model) · version 4
+- [Welding cell model](blocks/ws-welding-robot-model) · version 5
 - [Welding cell](blocks/ws-welding-cell) · version 7
 
 ### Files the blueprints make
