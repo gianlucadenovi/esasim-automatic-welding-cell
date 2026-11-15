@@ -48,12 +48,18 @@ An [EsaSim](https://esacode.com/) project of the workspace Gianluca De Novi's wo
 ### Blueprints in this repository
 
 - [1 · Learn to follow the seams](blueprints/1-learn-to-follow-the-seams.json) · 9 blocks · version 5
-- [2 · Production line](blueprints/2-production-line.json) · 10 blocks
+- [2 · Production line](blueprints/2-production-line.json) · 10 blocks · version 1
 
 ### Workspace blocks it uses
 
 - [Welding cell model](blocks/ws-welding-robot-model) · version 6
 - [Welding cell](blocks/ws-welding-cell) · version 8
+
+### Assets
+
+The files the project's views draw with (3D models, textures, sounds), in [assets/](assets/):
+
+- [textures/esacode-logo.png](assets/textures/esacode-logo.png) · 25 KB
 
 ### Files the blueprints make
 

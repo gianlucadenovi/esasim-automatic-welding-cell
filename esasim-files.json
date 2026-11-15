@@ -32,6 +32,14 @@
             "left_out": []
         }
     ],
-    "assets": [],
-    "saved": "2026-11-15T03:02:28+00:00"
+    "assets": [
+        {
+            "path": "textures/esacode-logo.png",
+            "size": 25614,
+            "sha256": "5165bee68f3a011323761eb87cfae64a9f5076c092c6f27f2627a1a1820c1091",
+            "zip": "assets/textures/esacode-logo.png",
+            "in": "repo"
+        }
+    ],
+    "saved": "2026-11-15T05:14:35+00:00"
 }
