@@ -894,7 +894,7 @@ s.o.frequency.setTargetAtTime(s.f0 * (1 + 1.6 * lv), now, 0.05);
 s.bp.frequency.setTargetAtTime(s.f0 * 2 * (1 + 1.6 * lv), now, 0.05);
 });
 }
-var RFXV = new THREE.Vector3();
+var RFXV = new THREE.Vector3(), RENDER_HEAL = 0;
 function rfxStep(dt) {
 RFX.t += dt; RFX.loud = 0;
 var live = {}, anyArc = false;
@@ -980,7 +980,7 @@ if (RFX.hall) scene.remove(RFX.hall);
 RFX.hallKey = key;
 var x0 = +H.x[0], x1 = +H.x[1], zN = -(+H.y[1]), zS = -(+H.y[0]), Hh = +H.height || HALL_H, xc = (x0 + x1) / 2, zc = (zN + zS) / 2, LX = x1 - x0, BD = zS - zN;
 var T = hallTextures(), hall = RFX.hall = new THREE.Group(); hall.name = 'robot-hall';
-var wallMat = new THREE.MeshStandardMaterial({ map: T.wall, roughness: 0.82, metalness: 0.15, emissiveMap: T.wall, emissive: 0x4a4f57, emissiveIntensity: 0.55, side: THREE.DoubleSide });
+var wallMat = new THREE.MeshStandardMaterial({ map: T.wall, roughness: 0.82, metalness: 0.15, emissiveMap: T.wall, emissive: 0x4a4f57, emissiveIntensity: 0.55 });   // (one-sided: from outside, the hall is open to look into)
 [[xc, zN, 0, LX, 'n'], [xc, zS, Math.PI, LX, 's'], [x0, zc, Math.PI / 2, BD, 'w'], [x1, zc, -Math.PI / 2, BD, 'e']].forEach(function (w) {   // each faces the hall
 var ds = (H.doors || []).filter(function (d) { return w[4] === 'w' ? Math.abs(d.x - x0) < 0.3 : w[4] === 'e' ? Math.abs(d.x - x1) < 0.3 : w[4] === 'n' ? Math.abs(d.y - (+H.y[1])) < 0.3 : Math.abs(d.y - (+H.y[0])) < 0.3; })
 .map(function (d) { var c = w[4] === 'w' ? +d.y : w[4] === 'e' ? -d.y : w[4] === 'n' ? +d.x : -d.x; return [c - d.w / 2, c + d.w / 2, +d.h]; }).sort(function (a, b) { return a[0] - b[0]; });
@@ -10579,7 +10579,13 @@ if (!flying) controls.update();
 function draw() {
 if (mode === 'car' && CR_TEL) return;
 if (mode === 'humanoid' && HM_TEL) return;
-if (mode === 'humanoid' && (HM_FIXED || HM.cam) === 'depth') hmDepthRender(); else if (composer) composer.render(); else renderer.render(scene, camera);
+try { if (mode === 'humanoid' && (HM_FIXED || HM.cam) === 'depth') hmDepthRender(); else if (composer) composer.render(); else renderer.render(scene, camera); }
+catch (e) {                                                                // a material whose program went stale (its uniforms missing):
+if (!/setting 'value'|reading 'value'/.test(String(e && e.message)) || (RENDER_HEAL = (RENDER_HEAL || 0) + 1) > 20) throw e;   // rebuild every material once and go on
+scene.traverse(function (o) { (Array.isArray(o.material) ? o.material : o.material ? [o.material] : []).forEach(function (m) { m.needsUpdate = true; }); });
+if (renderer.info && renderer.info.programs) { try { renderer.renderLists.dispose(); } catch (e2) { } }
+console.warn('[view] a material was rebuilt after: ' + e.message);
+}
 css2d.render(scene, camera);
 if (CAP.rec || CAP.offline || CAP.pic) capCompose();
 }

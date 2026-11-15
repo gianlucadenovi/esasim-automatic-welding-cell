@@ -56,11 +56,11 @@
         },
         {
             "path": "views/robot_cell_viewer.js",
-            "size": 934135,
-            "sha256": "e43907f5e7657869d9cb9d7a44392e8ac5e6a9853d215d4f707eaa0715fa582b",
+            "size": 934834,
+            "sha256": "3da4d0645647a160f1ccabb5c8e9dbdf5b82b4f6a8feff087e755efe2ae49c68",
             "zip": "assets/views/robot_cell_viewer.js",
             "in": "repo"
         }
     ],
-    "saved": "2026-11-15T19:22:19+00:00"
+    "saved": "2026-11-15T21:43:37+00:00"
 }
