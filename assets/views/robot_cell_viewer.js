@@ -632,6 +632,7 @@ var g = new THREE.BufferGeometry(), pos = new Float32Array(l.v.length);
 for (var n = 0; n < l.v.length; n++) pos[n] = l.v[n] * k;
 g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setIndex(l.f); g.computeVertexNormals();
 var m = new THREE.Mesh(g, mat(i, l)); m.castShadow = !ghost && !l.emissive && l.shadow !== false; m.receiveShadow = !ghost; holder.add(m);
+if (!ghost && J[i - 1] && lc(J[i - 1].name || '') === 'static:floor line' && m.material.isMeshStandardMaterial) { m.material = m.material.clone(); rfxWornPaint(m.material); m.castShadow = false; }
 var fx_ = l.fx || (J[i - 1] && /^(bead\d*|mark\d*):/i.test(J[i - 1].name || '') ? 'bead' : null);
 if (!ghost && fx_) { m.userData.fx = fx_; fxMeshes.push(m); if (fx_ === 'bead') m.castShadow = false; }
 if (!ghost && l.envmap === 'cube') cubeMeshes.push(m);
@@ -895,7 +896,80 @@ s.bp.frequency.setTargetAtTime(s.f0 * 2 * (1 + 1.6 * lv), now, 0.05);
 });
 }
 var RFXV = new THREE.Vector3(), RENDER_HEAL = 0;
+// the yellow floor marking, worn: scuffed through to the floor where the traffic goes, tyre and boot marks across
+// it, chips and grit; all from where it is on the floor (no texture needed)
+function rfxWornPaint(mt) {
+mt.onBeforeCompile = function (sh) {
+sh.vertexShader = 'varying vec3 vWpw;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vWpw = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+sh.fragmentShader = 'varying vec3 vWpw;\n'
++ 'float wpH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\n'
++ 'float wpN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(wpH(i), wpH(i + vec2(1, 0)), f.x), mix(wpH(i + vec2(0, 1)), wpH(i + vec2(1, 1)), f.x), f.y); }\n'
++ 'float wpF(vec2 p) { float a = 0.5, s = 0.0; for (int k = 0; k < 4; k++) { s += a * wpN(p); p *= 2.07; a *= 0.5; } return s; }\n'
++ sh.fragmentShader.replace('#include <color_fragment>', [
+'#include <color_fragment>',
+'  vec2 wq = vWpw.xz;',
+'  float wear = smoothstep(0.52, 0.78, wpF(wq * 1.6) + 0.22 * wpF(wq * 14.0));',          // patches scuffed down to the floor
+'  float chip = step(0.93, wpN(wq * 55.0)) * step(0.5, wpF(wq * 3.0));',                     // chips
+'  float tyre = smoothstep(0.62, 0.9, wpN(vec2(wq.x * 0.35, wq.y * 22.0))) * 0.55;',          // dark streaks along the aisle
+'  float boot = smoothstep(0.72, 0.95, wpN(wq * 7.0)) * 0.35;',                               // smudges
+'  float grit = step(0.975, wpH(floor(wq * 140.0)));',
+'  vec3 floorC = vec3(0.13, 0.14, 0.15);',
+'  diffuseColor.rgb = mix(diffuseColor.rgb, floorC, clamp(0.85 * wear + chip, 0.0, 1.0));',
+'  diffuseColor.rgb *= (1.0 - tyre) * (1.0 - boot) * (1.0 - 0.6 * grit) * (0.9 + 0.2 * wpN(wq * 30.0));'
+].join('\n')).replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = clamp(roughnessFactor + 0.25 * wear, 0.0, 1.0);');
+};
+mt.customProgramCacheKey = function () { return 'weld-worn-paint'; };
+mt.needsUpdate = true;
+}
+// the robots' dress packs: a black corrugated conduit from the base through the clamps on the links to the torch or
+// the gun (the model's "dress"), redrawn every frame through where the clamps are, sagging between them
+var DRV = new THREE.Vector3(), DRV2 = new THREE.Vector3(), DRV3 = new THREE.Vector3();
+function rfxDress() {
+var cur = units().map(function (U) { return U.arm && U.arm.userData; });
+RFX.dressAll = (RFX.dressAll || []).filter(function (e) { if (cur.indexOf(e.ud) >= 0) return true; scene.remove(e.mesh); e.mesh.geometry.dispose(); return false; });   // (a robot gone: its cables too)
+units().forEach(function (U) {
+var ud = U.arm && U.arm.userData, D = U.model && U.model.dress; if (!ud || !D || !D.length) return;
+if (!ud.dress) {
+ud.dress = [];
+var dm = new THREE.MeshStandardMaterial({ color: D[0].color || 0x141516, roughness: 0.6, metalness: 0.05 });
+D.forEach(function (c) {
+var an = c.anchors.map(function (a) { var ix = (ud.names || {})[lc(a[0])]; return ix == null ? null : { g: ud.joints[ix], p: new THREE.Vector3().fromArray(a[1]) }; });
+if (an.some(function (a) { return !a || !a.g; })) return;
+var NR = 480, M = 12, pos = new Float32Array(NR * M * 3), nrm = new Float32Array(NR * M * 3), idx = [];
+for (var r = 0; r < NR - 1; r++) for (var k = 0; k < M; k++) { var a0 = r * M + k, b0 = r * M + (k + 1) % M, c0 = a0 + M, d0 = b0 + M; idx.push(a0, c0, b0, b0, c0, d0); }
+var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3)); g.setIndex(idx);
+var mesh = new THREE.Mesh(g, dm); mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; scene.add(mesh); RFX.dressAll.push({ ud: ud, mesh: mesh });
+ud.dress.push({ an: an, slack: c.slack || [], R: +c.radius || 0.02, mesh: mesh, NR: NR, M: M, ctrl: [] });
+});
+}
+ud.dress.forEach(function (C) {
+C.mesh.visible = U.arm.visible !== false;
+if (!C.mesh.visible) return;
+var W = C.an.map(function (a) { a.g.updateWorldMatrix(true, false); return a.g.localToWorld(DRV.copy(a.p)).clone(); }), ctrl = [W[0]];
+for (var i = 1; i < W.length; i++) { var mid = W[i - 1].clone().add(W[i]).multiplyScalar(0.5); mid.y -= (+C.slack[i - 1] || 0); ctrl.push(mid, W[i]); }
+var cv = new THREE.CatmullRomCurve3(ctrl, false, 'centripetal'), L = cv.getLength();
+var N = Math.max(40, Math.min(C.NR, Math.round(L / 0.011))), P = cv.getSpacedPoints(N - 1), M = C.M;
+var pos = C.mesh.geometry.attributes.position.array, nrm = C.mesh.geometry.attributes.normal.array;
+var T = new THREE.Vector3(), n = new THREE.Vector3(), b = new THREE.Vector3();
+for (var r = 0; r < N; r++) {
+T.copy(P[Math.min(N - 1, r + 1)]).sub(P[Math.max(0, r - 1)]).normalize();
+if (r === 0) { n.set(0, 1, 0); if (Math.abs(n.dot(T)) > 0.9) n.set(1, 0, 0); }
+n.addScaledVector(T, -n.dot(T)).normalize(); b.crossVectors(T, n);
+var rr = C.R * (1 + 0.075 * (r % 2 ? 1 : -1));                       // the conduit's corrugation
+for (var k = 0; k < M; k++) {
+var a = 2 * Math.PI * k / M, ca = Math.cos(a), sa = Math.sin(a), o = 3 * (r * M + k);
+var nx = n.x * ca + b.x * sa, ny = n.y * ca + b.y * sa, nz = n.z * ca + b.z * sa;
+pos[o] = P[r].x + rr * nx; pos[o + 1] = P[r].y + rr * ny; pos[o + 2] = P[r].z + rr * nz;
+nrm[o] = nx; nrm[o + 1] = ny; nrm[o + 2] = nz;
+}
+}
+C.mesh.geometry.setDrawRange(0, (N - 1) * M * 6);
+C.mesh.geometry.attributes.position.needsUpdate = true; C.mesh.geometry.attributes.normal.needsUpdate = true;
+});
+});
+}
 function rfxStep(dt) {
+rfxDress();
 RFX.t += dt; RFX.loud = 0;
 var live = {}, anyArc = false;
 units().forEach(function (U) {
@@ -1003,7 +1077,7 @@ var lamp = new THREE.InstancedMesh(lg, lm, at.length), halo = new THREE.Instance
 at.forEach(function (p, i) { lamp.setMatrixAt(i, M.makeTranslation(p[0], Hh - 0.3, p[1])); halo.setMatrixAt(i, M.makeTranslation(p[0], Hh - 0.02, p[1])); });
 lamp.frustumCulled = halo.frustumCulled = false; hall.add(lamp, halo);
 var WT = hmWhTex(), ft = WT.whFloor.clone(); ft.userData = WT.whFloor.userData; ft.wrapS = ft.wrapT = THREE.RepeatWrapping; ft.repeat.set(LX / 6, BD / 6); ft.needsUpdate = true;   // the Spot warehouse's floor: blue-grey epoxy, 6 m between saw cuts, scuffs that blur its reflection
-var fm = hmPbr(new THREE.MeshStandardMaterial({ map: ft, roughness: +H.floor_roughness || 0.42, metalness: 0, envMapIntensity: 0.45 }));
+var fm = hmPbr(new THREE.MeshStandardMaterial({ map: ft, color: new THREE.Color(1, 1, 1).multiplyScalar(+H.floor_light || 1.4), roughness: +H.floor_roughness || 0.42, metalness: 0, envMapIntensity: 0.45 }));   // (a little lighter than the warehouse's)
 var fl = new THREE.Mesh(new THREE.PlaneGeometry(LX, BD), fm); fl.rotation.x = -Math.PI / 2; fl.position.set(xc, 0, zc); fl.receiveShadow = true; hall.add(fl);
 scene.add(hall);
 var es = new THREE.Scene(); es.background = new THREE.Color(0x232a33);
