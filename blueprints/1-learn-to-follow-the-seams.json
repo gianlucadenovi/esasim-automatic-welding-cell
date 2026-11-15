@@ -6,7 +6,7 @@
     "name": "1 · Learn to follow the seams",
     "description": "The seam cameras' network learns on the GPU to find the joint in laser profiles; every two minutes a whole car is welded with it, live in 3D. The network goes to the weld-tracker dataset.",
     "published_version": 3,
-    "updated": "2026-11-15 01:18:39",
+    "updated": "2026-11-15 01:26:36",
     "graph": {
         "nodes": [
             {
@@ -34,6 +34,28 @@
                         "tracker"
                     ]
                 }
+            },
+            {
+                "id": "tel_live",
+                "type": "telemetry",
+                "x": 380,
+                "y": -220,
+                "params": {
+                    "interval": 0.5,
+                    "channels": "cell,event,sensor,train",
+                    "keep": 3000
+                },
+                "title": "The cell, live"
+            },
+            {
+                "id": "live",
+                "type": "ws-welding-cell-3d-view",
+                "x": 760,
+                "y": -320,
+                "params": {
+                    "quality": "high"
+                },
+                "title": "Live: a car welded with the network as it learns"
             },
             {
                 "id": "tel_cell",
@@ -75,7 +97,7 @@
                     "numbers": "train.minutes=Minutes, train.p95_confident_mm=Camera: 95 % within:mm, train.car_worst_mm=Last car: worst weld:mm, train.car_seams_ok=Last car: seams OK",
                     "events_channel": "event"
                 },
-                "title": "The welding cell in 3D (cars welded with the network as it learns)"
+                "title": "Replay in 3D (the cars of the run, when it has finished)"
             },
             {
                 "id": "acc",
@@ -119,6 +141,28 @@
             }
         ],
         "edges": [
+            {
+                "id": "learn.telemetry>tel_live.from",
+                "from": {
+                    "node": "learn",
+                    "port": "telemetry"
+                },
+                "to": {
+                    "node": "tel_live",
+                    "port": "from"
+                }
+            },
+            {
+                "id": "tel_live.stream>live.live",
+                "from": {
+                    "node": "tel_live",
+                    "port": "stream"
+                },
+                "to": {
+                    "node": "live",
+                    "port": "live"
+                }
+            },
             {
                 "id": "learn.telemetry>tel_cell.from",
                 "from": {
@@ -200,29 +244,35 @@
         "notes": [],
         "dash": {
             "items": {
-                "view": {
+                "live": {
                     "x": 0,
                     "y": 0,
                     "w": 6,
                     "h": 17
                 },
-                "acc": {
+                "view": {
                     "x": 6,
-                    "y": 12,
+                    "y": 0,
+                    "w": 6,
+                    "h": 21
+                },
+                "acc": {
+                    "x": 0,
+                    "y": 17,
                     "w": 6,
                     "h": 7
                 },
                 "types": {
-                    "x": 6,
-                    "y": 5,
+                    "x": 0,
+                    "y": 24,
                     "w": 6,
                     "h": 7
                 },
                 "numbers": {
-                    "x": 6,
-                    "y": 0,
-                    "w": 4,
-                    "h": 5
+                    "x": 0,
+                    "y": 31,
+                    "w": 6,
+                    "h": 3
                 }
             }
         }

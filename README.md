@@ -33,7 +33,7 @@ Learn on the GPU, then run the line car after car, live in 3D.
 
 ## What you get
 
-- On the **View** page: *Events and scores, live* (1 · Learn to follow the seams), *Learning curve* (1 · Learn to follow the seams), *The welding cell in 3D (cars welded with the network as it learns)* (1 · Learn to follow the seams), *How well the seam camera reads* (1 · Learn to follow the seams), *By joint type* (1 · Learn to follow the seams), *Learning* (1 · Learn to follow the seams), *welding-cell-models (robot, car frame)* (2 · Production line), *Events and line numbers, live* (2 · Production line), *Car by car* (2 · Production line), *The welding cell in 3D (the newest five cars)* (2 · Production line), *Weld accuracy, car by car* (2 · Production line), *Finding the car* (2 · Production line).
+- On the **View** page: *The cell, live* (1 · Learn to follow the seams), *Live: a car welded with the network as it learns* (1 · Learn to follow the seams), *Events and scores, live* (1 · Learn to follow the seams), *Learning curve* (1 · Learn to follow the seams), *Replay in 3D (the cars of the run, when it has finished)* (1 · Learn to follow the seams), *How well the seam camera reads* (1 · Learn to follow the seams), *By joint type* (1 · Learn to follow the seams), *Learning* (1 · Learn to follow the seams), *welding-cell-models (robot, car frame)* (2 · Production line), *Events and line numbers, live* (2 · Production line), *Car by car* (2 · Production line), *The welding cell in 3D (the newest five cars)* (2 · Production line).
 
 ## Data and licences
 
@@ -47,11 +47,12 @@ An [EsaSim](https://esacode.com/) project of the workspace Gianluca De Novi's wo
 
 ### Blueprints in this repository
 
-- [1 · Learn to follow the seams](blueprints/1-learn-to-follow-the-seams.json) · 7 blocks · version 3
+- [1 · Learn to follow the seams](blueprints/1-learn-to-follow-the-seams.json) · 9 blocks · version 3
 - [2 · Production line](blueprints/2-production-line.json) · 9 blocks
 
 ### Workspace blocks it uses
 
 - [Welding cell](blocks/ws-welding-cell) · version 3
+- [Welding cell 3D view](blocks/ws-welding-cell-3d-view) · version 2
 
 Keys pasted in blocks (secret settings) are not saved here. Datasets, results and the team stay in EsaSim.

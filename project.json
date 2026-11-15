@@ -13,7 +13,7 @@
             "name": "1 · Learn to follow the seams",
             "file": "blueprints/1-learn-to-follow-the-seams.json",
             "published_version": 3,
-            "nodes": 7
+            "nodes": 9
         },
         {
             "name": "2 · Production line",
@@ -27,6 +27,11 @@
             "id": "ws-welding-cell",
             "version": 3,
             "name": "Welding cell"
+        },
+        {
+            "id": "ws-welding-cell-3d-view",
+            "version": 2,
+            "name": "Welding cell 3D view"
         }
     ]
 }
