@@ -7,7 +7,7 @@
     "side": "backend",
     "customizable": true,
     "summary": "Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam; learn on the GPU (or the CPU), then run the line car af",
-    "help": "What to do: Learn to follow the seams trains the seam camera's network on simulated laser profiles (on an NVIDIA GPU when the machine has one, otherwise on the CPU, with Accelerator auto) and, every couple of minutes, welds a whole car with it; the network goes out as seam_tracker_<date>_<p95>um.pt (send it to a dataset wired back to Seam tracker so learning goes on from it). Run the production line (any machine) welds car after car with the newest network: the sled brings the car in (it stops within ±3 cm), the four robots read two reference points each with their laser line and find the car's position and turn, then weld their seams following the camera, and the car leaves for the next one. Seam camera off (or no network yet) welds the taught programme as it is, to compare. Each robot works out by itself which way round to weld each seam, how to lean the torch and from which arm pose. 3D: wire the Welding cell model block's output to a 3D view and to Robot model here, and this block's telemetry to the same view: the car frame on its sled and the four robots move there while the cars are welded, with the rails and the car's seams (blue to weld, orange welded) and a bright dot at each wire. Results: every weld (worst and mean distance from the real seam, in mm) and every car (where it really was and where the robots found it, cycle time).",
+    "help": "What to do: Learn to follow the seams trains the seam camera's network on simulated laser profiles (on an NVIDIA GPU when the machine has one, otherwise on the CPU, with Accelerator auto) and, every couple of minutes, welds a whole car with it; the network goes out as seam_tracker_<date>_<p95>um.pt (send it to a dataset wired back to Seam tracker so learning goes on from it). Run the production line (any machine) welds car after car with the newest network: the sled brings the car in (it stops within ±3 cm), the four robots read two reference points each with their laser line and find the car's position and turn, then weld their seams following the camera, and the car leaves for the next one. Seam camera off (or no network yet) welds the taught programme as it is, to compare. Each robot works out by itself which way round to weld each seam, how to lean the torch and from which arm pose. 3D: wire the Welding cell model block's output to a 3D view and to Robot model here, and this block's telemetry to the same view: the car frame on its sled and the four robots move there while the cars are welded, the arc glows at each wire, and the welds appear on the car as dark beads right behind each torch and stay on it until it leaves. Results: every weld (worst and mean distance from the real seam, in mm) and every car (where it really was and where the robots found it, cycle time).",
     "inputs": [
         {
             "id": "tracker",
@@ -40,7 +40,7 @@
             "formats": [
                 "gz"
             ],
-            "help": "The Welding cell model block's output: its joint list says what each angle of the joints channel is, and the block starts after it, so the cell is in the 3D view when the first car comes in"
+            "help": "The Welding cell model block's output: its joint list, weld beads and arcs say what each joint of the joints channel is, and the block starts after it, so the cell is in the 3D view when the first car"
         }
     ],
     "outputs": [
@@ -294,6 +294,6 @@
         "trimesh"
     ],
     "esasim": {
-        "version": 7
+        "version": 8
     }
 }
