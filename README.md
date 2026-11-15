@@ -23,7 +23,7 @@ Learn on the GPU, then run the line car after car, live in 3D.
 
 - A machine with the EsaSim worker (Project > Compute); it runs on any machine, faster with: NVIDIA GPU.
 - Data it reads: the dataset **welding-cell-models** of the workspace, read by *welding-cell-models (robot, car frame)*.
-- Python packages, installed by the worker the first time: `torch`, `numpy`, `trimesh`.
+- Python packages, installed by the worker the first time: `numpy`, `trimesh`, `torch`.
 
 ## How to run it
 
@@ -33,7 +33,7 @@ Learn on the GPU, then run the line car after car, live in 3D.
 
 ## What you get
 
-- On the **View** page: *The cell, live* (1 · Learn to follow the seams), *Live: a car welded with the network as it learns* (1 · Learn to follow the seams), *Events and scores, live* (1 · Learn to follow the seams), *Learning curve* (1 · Learn to follow the seams), *Replay in 3D (the cars of the run, when it has finished)* (1 · Learn to follow the seams), *How well the seam camera reads* (1 · Learn to follow the seams), *By joint type* (1 · Learn to follow the seams), *Learning* (1 · Learn to follow the seams), *welding-cell-models (robot, car frame)* (2 · Production line), *Events and line numbers, live* (2 · Production line), *Car by car* (2 · Production line), *The welding cell in 3D (the newest five cars)* (2 · Production line).
+- On the **View** page: *welding-cell-models (robot, car frame)* (2 · Production line), *The robot's joints and the cell, live* (1 · Learn to follow the seams), *Live: the front right robot welding a car with the network as it learns* (1 · Learn to follow the seams), *Events and scores* (1 · Learn to follow the seams), *Learning curve* (1 · Learn to follow the seams), *Replay: the whole cell, car by car (when the run has finished)* (1 · Learn to follow the seams), *How well the seam camera reads* (1 · Learn to follow the seams), *By joint type* (1 · Learn to follow the seams), *Learning* (1 · Learn to follow the seams), *Events and line numbers, live* (2 · Production line), *Car by car* (2 · Production line), *The welding cell in 3D (the newest five cars)* (2 · Production line).
 
 ## Data and licences
 
@@ -47,12 +47,12 @@ An [EsaSim](https://esacode.com/) project of the workspace Gianluca De Novi's wo
 
 ### Blueprints in this repository
 
-- [1 · Learn to follow the seams](blueprints/1-learn-to-follow-the-seams.json) · 9 blocks · version 3
+- [1 · Learn to follow the seams](blueprints/1-learn-to-follow-the-seams.json) · 11 blocks · version 3
 - [2 · Production line](blueprints/2-production-line.json) · 9 blocks
 
 ### Workspace blocks it uses
 
-- [Welding cell](blocks/ws-welding-cell) · version 4
-- [Welding cell 3D view](blocks/ws-welding-cell-3d-view) · version 2
+- [Welding robot model](blocks/ws-welding-robot-model) · version 1
+- [Welding cell](blocks/ws-welding-cell) · version 5
 
 Keys pasted in blocks (secret settings) are not saved here. Datasets, results and the team stay in EsaSim.

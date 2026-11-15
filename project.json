@@ -13,7 +13,7 @@
             "name": "1 · Learn to follow the seams",
             "file": "blueprints/1-learn-to-follow-the-seams.json",
             "published_version": 3,
-            "nodes": 9
+            "nodes": 11
         },
         {
             "name": "2 · Production line",
@@ -24,14 +24,14 @@
     ],
     "blocks": [
         {
-            "id": "ws-welding-cell",
-            "version": 4,
-            "name": "Welding cell"
+            "id": "ws-welding-robot-model",
+            "version": 1,
+            "name": "Welding robot model"
         },
         {
-            "id": "ws-welding-cell-3d-view",
-            "version": 2,
-            "name": "Welding cell 3D view"
+            "id": "ws-welding-cell",
+            "version": 5,
+            "name": "Welding cell"
         }
     ]
 }

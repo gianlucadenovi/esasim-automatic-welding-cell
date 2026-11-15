@@ -1,0 +1,68 @@
+{
+    "id": "ws-welding-robot-model",
+    "version": "1",
+    "name": "Welding robot model",
+    "category": "Simulation",
+    "icon": "robot-arm",
+    "side": "backend",
+    "customizable": true,
+    "summary": "One of the welding cell's four KUKA KR 210 robots, with its swan-neck torch, as a robot model for EsaSim's 3D view, placed where it stands in the cell.",
+    "help": "Wire the welding-cell-models dataset to Models and the Robot model output to a 3D view; wire the Welding cell block's telemetry to the same view (channels joints, scene, event). The block finishes in seconds, so the view has the robot while the welding cell runs beside it: the robot moves with its joints (j1 to j6, j7 = the torch), and the rails, sled, car floor and every seam of the car (blue to weld, orange welded, grey for the other robots' seams) come on the scene channel. Pick the same robot here and in the Welding cell block.",
+    "inputs": [
+        {
+            "id": "models",
+            "label": "Models",
+            "type": "files",
+            "many": true,
+            "optional": true,
+            "formats": [
+                "glb"
+            ],
+            "help": "The welding-cell-models dataset (kr210_weld.glb is used); without it, boxes stand in"
+        }
+    ],
+    "outputs": [
+        {
+            "id": "robot",
+            "label": "Robot model",
+            "type": "files",
+            "formats": [
+                "gz"
+            ],
+            "help": "kr210_<robot>.robot.json.gz (esasim.robot/1): wire it to a 3D view, with the Welding cell block's telemetry (channels joints, scene)"
+        }
+    ],
+    "params": [
+        {
+            "key": "robot",
+            "label": "Robot",
+            "type": "select",
+            "default": "front right",
+            "options": [
+                "front right",
+                "front left",
+                "rear right",
+                "rear left"
+            ],
+            "help": "The same as the Welding cell block's setting 3D view: robot shown live"
+        },
+        {
+            "key": "triangles",
+            "label": "Triangles at most",
+            "type": "number",
+            "default": 40000,
+            "min": 2000,
+            "max": 200000
+        }
+    ],
+    "hardware": [
+        "cpu"
+    ],
+    "packages": [
+        "numpy",
+        "trimesh"
+    ],
+    "esasim": {
+        "version": 1
+    }
+}

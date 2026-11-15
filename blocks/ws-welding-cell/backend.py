@@ -1,5 +1,5 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell (ws-welding-cell) · version 4 · machine block, Python: def run(ctx)
+# Welding cell (ws-welding-cell) · version 5 · machine block, Python: def run(ctx)
 # Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam; learn on the GPU (or the CPU), then run the line car af
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
 # Saved: 2026-11-15
@@ -7,6 +7,7 @@
 # Inputs   ctx.inputs["id"] is a list of files: .path .name .size .read_text() .read_json()
 #   tracker     Files (pt)                Seam tracker · several · optional · The weld-tracker dataset (seam_tracker_*.pt): the line uses the newest; learning goes on from it
 #   models      Files (glb)               Models · several · optional · The welding-cell-models dataset: kr210_weld.glb (the robot with its torch) and s15_frame.glb (the car frame). Without them, boxes stand in in the 3D view
+#   robot       Files (gz)                Robot model · several · optional · The Welding robot model block's output: the block starts after it, so the robot is already in the 3D view when the first car comes in
 # Outputs  ctx.output("id", "name.ext") is the path to write; ctx.write_json / ctx.write_text
 #   tracker     Files (pt)                Seam tracker · Learn: seam_tracker_<date>_<p95>um.pt (the network and its scores)
 #   curve       Table (csv)               Learning curve · Learn: training.csv, every 15 s
