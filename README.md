@@ -22,7 +22,7 @@ Learn on the GPU, then run the line car after car, live in 3D.
 ## What you need
 
 - A machine with the EsaSim worker (Project > Compute); it runs on any machine, faster with: NVIDIA GPU.
-- Python packages, installed by the worker the first time: `torch`, `numpy`.
+- Python packages, installed by the worker the first time: `torch`, `numpy`, `trimesh`.
 
 ## How to run it
 
@@ -47,7 +47,7 @@ An [EsaSim](https://esacode.com/) project of the workspace Gianluca De Novi's wo
 
 ### Workspace blocks it uses
 
-- [Welding cell](blocks/ws-welding-cell) · version 1
+- [Welding cell](blocks/ws-welding-cell) · version 2
 - [Welding cell 3D view](blocks/ws-welding-cell-3d-view) · version 1
 
 Keys pasted in blocks (secret settings) are not saved here. Datasets, results and the team stay in EsaSim.
