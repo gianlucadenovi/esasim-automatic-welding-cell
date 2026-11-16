@@ -7,6 +7,8 @@
     "name": "Automatic welding cell",
     "description": "Four KUKA KR 210 robots weld a car body frame brought in on a sled: laser seam cameras with a learned network find the car (±3 cm) and follow every seam. Learn on the GPU, then run the line car after car, live in 3D.",
     "type": "manufacturing",
+    "cover": "upload",
+    "cover_file": "assets/cover.jpg",
     "readme": null,
     "blueprints": [
         {
