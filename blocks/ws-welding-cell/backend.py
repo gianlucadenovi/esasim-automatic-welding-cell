@@ -1,8 +1,8 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell (ws-welding-cell) · version 13 · machine block, Python: def run(ctx)
+# Welding cell (ws-welding-cell) · version 14 · machine block, Python: def run(ctx)
 # Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera with a learned network finds the car (±3 cm) and tracks every seam, without the robots touching the car or each other; lear
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
-# Saved: 2026-11-15
+# Saved: 2026-11-16
 #
 # Inputs   ctx.inputs["id"] is a list of files: .path .name .size .read_text() .read_json()
 #   tracker     Files (pt)                Seam tracker · several · optional · The weld-tracker dataset (seam_tracker_*.pt): the line uses the newest; learning goes on from it
@@ -101,8 +101,8 @@ STOP_X, ENTRY_X, EXIT_X = 0.0, -11.0, 11.0      # m, in the MIG cell's frame: th
 DOOR_H, DOOR_V = 3.0, 0.75                      # the hall's roll-up doors: how far they rise (m) and how fast (m/s)
 LOOKAHEAD = 0.065       # laser line ahead of the wire (m)
 ROBOT_DEFS = [          # name, base x, y, z (pedestal), quarter
-    ("front_right", 1.35, -2.00, 0.45, "front"), ("front_left", 1.35, 2.00, 0.45, "front"),
-    ("rear_right", -1.40, -2.30, 0.40, "rear"), ("rear_left", -1.40, 2.30, 0.40, "rear")]
+    ("front_right", 1.35, -2.45, 0.45, "front"), ("front_left", 1.35, 2.45, 0.45, "front"),     # (all 2.45 m off the rail: room
+    ("rear_right", -1.40, -2.45, 0.40, "rear"), ("rear_left", -1.40, 2.45, 0.40, "rear")]          # to fold the arm near the car)
 TYPES = ["lap", "corner", "flange", "butt"]
 
 # seams of the right side of the frame, car frame (x forward, y left, z up; mm) and torch-side normals (x100)
@@ -297,7 +297,7 @@ GUN_K = np.array([2.24, 0.0, 1.784])                       # contact point (the 
 GUN_R0 = np.c_[[0, 0, -1.0], [0, -1.0, 0], [-1.0, 0, 0]]  # tool x: onto the sheet; z: the electrodes' axis toward the robot
 GUN_OPEN = 0.07                                            # m: the moving electrode backs off this far to open
 SPOT_CLEAR_ARM, SPOT_CLEAR_GUN = 0.025, 0.006               # m: least distances to the car, moving
-SPOTS_CELL = r'''{"front_right":[[0.651,-0.88,0.2376,-0.0549,-0.7404,0.6699,0.1804,-0.6672,-0.7227,39.6,28.07,-45.55,-49.76,-51.65,65.42],[0.721,-0.9522,0.114,-0.037,-0.9975,0.0601,0.9974,-0.0331,0.0644,49.6,11.45,-68.27,-112.53,-71.97,55.93],[0.7256,-0.9656,-0.0266,0.1172,-0.993,0.0166,0.993,0.1169,-0.0148,45.66,-10.39,-72.73,-130.88,-84.56,85.68],[0.7212,-0.9628,-0.1401,0.1061,-0.9923,-0.0641,0.9923,0.1098,-0.0574,46.0,-37.88,-68.23,-128.25,-103.94,105.95],[0.7144,-0.9589,-0.2248,-0.162,-0.9819,-0.0976,0.9839,-0.1532,-0.092,52.5,-44.55,-58.42,-106.55,-99.53,107.86],[1.6817,-1.0231,-0.0376,0.1458,-0.9859,-0.0818,0.7562,0.0577,0.6518,-63.09,-29.85,-76.48,-63.77,102.25,-145.46]],"front_left":[[0.651,0.88,0.2376,-0.0549,0.7404,0.6699,0.1804,0.6672,-0.7227,-39.6,28.07,-45.55,49.76,-51.65,-65.42],[0.721,0.9522,0.114,-0.037,0.9975,0.0601,0.9974,0.0331,0.0644,-49.6,11.45,-68.27,112.53,-71.97,-55.93],[0.7256,0.9656,-0.0266,0.1172,0.993,0.0166,0.993,-0.1169,-0.0148,-45.66,-10.39,-72.73,130.88,-84.56,-85.68],[0.7212,0.9628,-0.1401,0.1061,0.9923,-0.0641,0.9923,-0.1098,-0.0574,-46.0,-37.88,-68.23,128.25,-103.94,-105.95],[0.7144,0.9589,-0.2248,-0.162,0.9819,-0.0976,0.9839,0.1532,-0.092,-52.5,-44.55,-58.42,106.55,-99.53,-107.86],[1.6817,1.0231,-0.0376,0.1458,0.9859,-0.0818,0.7562,-0.0577,0.6518,63.09,-29.85,-76.48,63.77,102.25,145.46]],"rear_right":[[-1.2316,-0.7949,0.3966,-0.6209,-0.782,-0.0543,-0.5813,0.5058,-0.6374,23.8,14.19,-51.73,-117.66,-63.25,185.58],[-0.7072,-0.9583,0.1695,-0.0063,-0.9785,0.2059,-0.9875,0.0385,0.1527,-35.03,13.7,-54.72,113.78,-48.55,-36.21],[-0.6966,-0.9528,0.1857,-0.009,-0.9445,0.3284,-0.5749,0.2736,0.7711,-34.25,17.31,-51.27,99.57,-41.3,24.69],[-0.6947,-0.9643,0.1437,0.0229,-0.9759,0.2171,-0.5066,-0.1985,-0.839,-36.5,11.26,-54.15,111.74,-50.99,-105.12],[-2.0073,-0.9592,-0.1403,-0.171,-0.982,-0.0802,-0.4156,-0.0019,0.9096,56.21,-29.15,-54.79,55.96,91.23,150.76],[-2.3189,-0.9062,-0.0935,-0.2034,-0.9779,-0.0487,-0.7163,0.1147,0.6883,64.66,-28.49,-40.91,66.91,84.56,114.65]],"rear_left":[[-1.2316,0.7949,0.3966,-0.6209,0.782,-0.0543,-0.5813,-0.5058,-0.6374,-23.8,14.19,-51.73,117.66,-63.25,-185.58],[-0.7072,0.9583,0.1695,-0.0063,0.9785,0.2059,-0.9875,-0.0385,0.1527,35.03,13.7,-54.72,-113.78,-48.55,36.21],[-0.6966,0.9528,0.1857,-0.009,0.9445,0.3284,-0.5749,-0.2736,0.7711,34.25,17.31,-51.27,-99.57,-41.3,-24.69],[-0.6947,0.9643,0.1437,0.0229,0.9759,0.2171,-0.5066,0.1985,-0.839,36.5,11.26,-54.15,-111.74,-50.99,105.12],[-2.0073,0.9592,-0.1403,-0.171,0.982,-0.0802,-0.4156,0.0019,0.9096,-56.21,-29.15,-54.79,-55.96,91.23,-150.76],[-2.3189,0.9062,-0.0935,-0.2034,0.9779,-0.0487,-0.7163,-0.1147,0.6883,-64.66,-28.49,-40.91,-66.91,84.56,-114.65]]}'''                                 # per robot, in welding order: [p (3), n (3), x (3), seed q (6, deg)], car frame
+SPOTS_CELL = r'''{"front_right":[[0.651,-0.88,0.2376,-0.0549,-0.7404,0.6699,0.1804,-0.6672,-0.7227,39.6,28.07,-45.55,-49.76,-51.65,65.42],[0.721,-0.9522,0.114,-0.037,-0.9975,0.0601,0.9974,-0.0331,0.0644,49.6,11.45,-68.27,-112.53,-71.97,55.93],[0.7256,-0.9656,-0.0266,0.1172,-0.993,0.0166,0.993,0.1169,-0.0148,45.66,-10.39,-72.73,-130.88,-84.56,85.68],[0.7212,-0.9628,-0.1401,0.1061,-0.9923,-0.0641,0.9923,0.1098,-0.0574,46.0,-37.88,-68.23,-128.25,-103.94,105.95],[0.7144,-0.9589,-0.2248,-0.162,-0.9819,-0.0976,0.9839,-0.1532,-0.092,52.5,-44.55,-58.42,-106.55,-99.53,107.86]],"front_left":[[0.651,0.88,0.2376,-0.0549,0.7404,0.6699,0.1804,0.6672,-0.7227,-39.6,28.07,-45.55,49.76,-51.65,-65.42],[0.721,0.9522,0.114,-0.037,0.9975,0.0601,0.9974,0.0331,0.0644,-49.6,11.45,-68.27,112.53,-71.97,-55.93],[0.7256,0.9656,-0.0266,0.1172,0.993,0.0166,0.993,-0.1169,-0.0148,-45.66,-10.39,-72.73,130.88,-84.56,-85.68],[0.7212,0.9628,-0.1401,0.1061,0.9923,-0.0641,0.9923,-0.1098,-0.0574,-46.0,-37.88,-68.23,128.25,-103.94,-105.95],[0.7144,0.9589,-0.2248,-0.162,0.9819,-0.0976,0.9839,0.1532,-0.092,-52.5,-44.55,-58.42,106.55,-99.53,-107.86]],"rear_right":[[-1.2316,-0.7949,0.3966,-0.6209,-0.782,-0.0543,-0.5813,0.5058,-0.6374,23.8,14.19,-51.73,-117.66,-63.25,185.58],[-0.7072,-0.9583,0.1695,-0.0063,-0.9785,0.2059,-0.9875,0.0385,0.1527,-35.03,13.7,-54.72,113.78,-48.55,-36.21],[-0.6966,-0.9528,0.1857,-0.009,-0.9445,0.3284,-0.5749,0.2736,0.7711,-34.25,17.31,-51.27,99.57,-41.3,24.69],[-0.6947,-0.9643,0.1437,0.0229,-0.9759,0.2171,-0.5066,-0.1985,-0.839,-36.5,11.26,-54.15,111.74,-50.99,-105.12],[-2.0073,-0.9592,-0.1403,-0.171,-0.982,-0.0802,-0.4156,-0.0019,0.9096,56.21,-29.15,-54.79,55.96,91.23,150.76],[-2.3189,-0.9062,-0.0935,-0.2034,-0.9779,-0.0487,-0.7163,0.1147,0.6883,64.66,-28.49,-40.91,66.91,84.56,114.65]],"rear_left":[[-1.2316,0.7949,0.3966,-0.6209,0.782,-0.0543,-0.5813,-0.5058,-0.6374,-23.8,14.19,-51.73,117.66,-63.25,-185.58],[-0.7072,0.9583,0.1695,-0.0063,0.9785,0.2059,-0.9875,-0.0385,0.1527,35.03,13.7,-54.72,-113.78,-48.55,36.21],[-0.6966,0.9528,0.1857,-0.009,0.9445,0.3284,-0.5749,-0.2736,0.7711,34.25,17.31,-51.27,-99.57,-41.3,-24.69],[-0.6947,0.9643,0.1437,0.0229,0.9759,0.2171,-0.5066,0.1985,-0.839,36.5,11.26,-54.15,-111.74,-50.99,105.12],[-2.0073,0.9592,-0.1403,-0.171,0.982,-0.0802,-0.4156,0.0019,0.9096,-56.21,-29.15,-54.79,-55.96,91.23,-150.76],[-2.3189,0.9062,-0.0935,-0.2034,0.9779,-0.0487,-0.7163,-0.1147,0.6883,-64.66,-28.49,-40.91,-66.91,84.56,-114.65]]}'''                                 # per robot, in welding order: [p (3), n (3), x (3), seed q (6, deg)], car frame
 
 
 GUN_FLANGE = np.array([1.79, 0.0, 1.784])                  # the flange face on the A6 axis
@@ -675,6 +675,30 @@ class SpotCollide(Collide):
         pts = np.vstack([pts, P]); ps = np.concatenate([ps, inv + len(c)])
         order = np.argsort(ps, kind="stable"); self.pts = pts[order]; self.pts_sphere = ps[order]
         self.pts_link = self.link[self.pts_sphere]; self.start = np.searchsorted(self.pts_sphere, np.arange(len(self.c) + 1))
+        # coarse spheres for the gun against the robot's own base, turret, upper arm and forearm (self collision)
+        def coarse(sel, cell):
+            C_, R_, L_ = [], [], []
+            for k in np.unique(self.link[sel]):
+                m = sel & (self.link == k); c = self.c[m]; r = self.r[m]
+                key = np.floor(c / cell).astype(np.int64); u, inv = np.unique(key, axis=0, return_inverse=True); inv = inv.ravel()
+                gc = np.zeros((len(u), 3)); np.add.at(gc, inv, c); gc /= np.bincount(inv)[:, None]
+                gr = np.zeros(len(u)); np.maximum.at(gr, inv, np.linalg.norm(c - gc[inv], axis=1) + r)
+                C_.append(gc); R_.append(gr); L_.append(np.full(len(u), k))
+            return np.vstack(C_), np.concatenate(R_), np.concatenate(L_)
+        self.sb = coarse((self.link <= 3) & ~self.is_tool, 0.16)
+        self.st = coarse(self.is_tool, 0.08)
+
+    def self_clear(self, robot, q):
+        """How far the gun is from the robot's own base, turret, upper arm and forearm (m; below 0: they meet)."""
+        Rs, ps = self.frames(robot, q)
+        Bc, Br, Bl = self.sb; Tc, Tr, Tl = self.st
+        B = np.empty_like(Bc)
+        for k in range(4):
+            m = Bl == k
+            B[m] = Bc[m] @ Rs[k].T + ps[k]
+        T = Tc @ Rs[6].T + ps[6]
+        d = np.linalg.norm(T[:, None, :] - B[None, :, :], axis=2) - Tr[:, None] - Br[None, :]
+        return float(d.min())
 
 
 COLL_SPOT = None            # the spot robots' Collide, once the models are read
@@ -706,7 +730,12 @@ class SpotCell:
         return a, g
 
     def ok(self, r, q):
-        a, g = self.clear(r, q); return a > SPOT_CLEAR_ARM and g > SPOT_CLEAR_GUN
+        a, g = self.clear(r, q)
+        if not (a > SPOT_CLEAR_ARM and g > SPOT_CLEAR_GUN):
+            return False
+        sc = COLL_SPOT.self_clear(r, q) if COLL_SPOT is not None else 1.0
+        self.min_self = min(getattr(self, "min_self", 9.0), sc)
+        return sc > 0.0                                    # (and the gun clear of the robot's own arm)
 
     def joint_path(self, q0, q1):
         d = np.abs(q1 - q0); T = max(0.6, float(np.max(d / VMAX)) * 1.5 + 0.3); n = max(2, int(T / self.DT))
@@ -738,7 +767,10 @@ class SpotCell:
         far0 = self.pose(r, out0[0] + 0.35 * out0[1], out0[2], q0) if out0 else None
         far1 = self.pose(r, out1[0] + 0.35 * out1[1], out1[2], q1) if out1 else None
         fold0 = r["home"].copy(); fold0[0] = q0[0]; fold1 = r["home"].copy(); fold1[0] = q1[0]
-        return [[far0], [far1], [far0, far1], [fold0], [fold1], [fold0, fold1], [far0, fold0, fold1], [fold0, fold1, far1], [far0, fold0, fold1, far1], [r["home"]]]
+        up = lambda a1: np.r_[a1, np.radians([-40, 15, 0, -55, 0])]          # the arm raised, the gun held high and out
+        up0, up1, upm = up(q0[0]), up(q1[0]), up(0.5 * (q0[0] + q1[0]))
+        return [[far0], [far1], [far0, far1], [fold0], [fold1], [fold0, fold1], [far0, fold0, fold1], [fold0, fold1, far1], [far0, fold0, fold1, far1],
+                [up0, up1], [far0, up0, up1, far1], [far0, up0, upm, up1, far1], [fold0, up0, up1, fold1], [far0, up0, up1], [up0, up1, far1], [r["home"]]]
 
     def linear(self, r, p0, p1, Rt, q, seconds):
         out = []; n = max(2, int(seconds / self.DT))
@@ -804,7 +836,7 @@ class SpotCell:
 
 
 PARK_X = 200.0                          # m: where a sled not in use waits, far out of sight
-SPOT_PLAN_VERSION = "x-gun 2"           # (a new one when the planning changes: the cached programmes are not used then)
+SPOT_PLAN_VERSION = "x-gun 3"           # (a new one when the planning changes: the cached programmes are not used then)
 
 
 class SpotPlanJob:
@@ -1011,8 +1043,9 @@ def load_cell():
         best = None                                     # turn the folded arm away from the car's path
         for a1 in (-50, -30, 30, 50):
             home[0] = math.radians(a1); _, p, _ = fk(home); pw = Rb @ p + base
-            if best is None or abs(pw[1]) > best[0]:
-                best = (abs(pw[1]), a1)
+            score = abs(pw[1]) + 0.6 * math.copysign(1.0, bx) * pw[0]       # out from the rail, and away from its neighbour
+            if best is None or score > best[0]:
+                best = (score, a1)
         home[0] = math.radians(best[1])
         robots.append(dict(name=name, base=base, yaw=yaw, Rb=Rb, seams=seams, home=home, quarter=quarter))
     return robots
@@ -2271,8 +2304,9 @@ def spot_cell_robots():
         home = HOME.copy(); best = None
         for a1 in (-50, -30, 30, 50):
             home[0] = math.radians(a1); _, p, _ = fk_tool(home, GUN_R0, GUN_K); pw = Rb @ p + base
-            if best is None or abs(pw[1]) > best[0]:
-                best = (abs(pw[1]), a1)
+            score = abs(pw[1]) + 0.6 * math.copysign(1.0, bx) * pw[0]       # out from the rail, and away from its neighbour
+            if best is None or score > best[0]:
+                best = (score, a1)
         home[0] = math.radians(best[1])
         out.append(dict(name=name, base=base, yaw=yaw, Rb=Rb, home=home, quarter=quarter, seams=[]))
     return out
