@@ -1,8 +1,8 @@
 # ── EsaSim block ──────────────────────────────────────────────────────
-# Welding cell model (ws-welding-robot-model) · version 19 · machine block, Python: def run(ctx)
+# Welding cell model (ws-welding-robot-model) · version 20 · machine block, Python: def run(ctx)
 # The welding cell for EsaSim's 3D view: the four KUKA KR 210 robots with their swan-neck torches and the car body frame on its sled, one model with each part in its own material.
 # Workspace: Gianluca De Novi's workspace · Author: Gianluca De Novi
-# Saved: 2026-11-15
+# Saved: 2026-11-16
 #
 # Inputs   ctx.inputs["id"] is a list of files: .path .name .size .read_text() .read_json()
 #   models      Files (glb)               Models · several · optional · The welding-cell-models dataset: kr210_weld.glb (the robot) and s15_frame.glb (the car frame); without them, boxes stand in
@@ -58,13 +58,13 @@ import re
 import numpy as np
 
 CELL_A_X, CELL_B_X = -5.5, 5.5          # m along the rail: the MIG cell (entry side) and the spot welding cell (exit side)
-LAYOUT = [("front right", 1.35, -2.00, 0.45, 1.0), ("front left", 1.35, 2.00, 0.45, 1.0),     # in a cell: name, base x, y, z, aim x
-          ("rear right", -1.40, -2.30, 0.40, -1.0), ("rear left", -1.40, 2.30, 0.40, -1.0)]
+LAYOUT = [("front right", 1.35, -2.45, 0.45, 1.0), ("front left", 1.35, 2.45, 0.45, 1.0),     # in a cell: name, base x, y, z, aim x
+          ("rear right", -1.40, -2.45, 0.40, -1.0), ("rear left", -1.40, 2.45, 0.40, -1.0)]       # (all 2.45 m off the rail)
 ROBOTS = [(n, x + CELL_A_X, y, z, a + CELL_A_X) for n, x, y, z, a in LAYOUT]                    # the MIG robots (seam welding)
 SPOT_ROBOTS = [("spot " + n, x + CELL_B_X, y, z, a + CELL_B_X) for n, x, y, z, a in LAYOUT]     # the spot welding robots
 SPOT_DROP = {"torch_tip", "torch_nozzle", "torch_body", "torch_brass", "torch_clamp", "camera_lens", "camera_body"}
 MARK_MAT = ("#3b3733", 0.55, 0.45)      # a spot weld: a dark, heat-tinted dimple on both sides of the sheet
-SPOTS_JSON = r'''{"spot front right":[[0.651,-0.88,0.2376,-0.0549,-0.7404,0.6699],[0.721,-0.9522,0.114,-0.037,-0.9975,0.0601],[0.7256,-0.9656,-0.0266,0.1172,-0.993,0.0166],[0.7212,-0.9628,-0.1401,0.1061,-0.9923,-0.0641],[0.7144,-0.9589,-0.2248,-0.162,-0.9819,-0.0976],[1.6817,-1.0231,-0.0376,0.1458,-0.9859,-0.0818]],"spot front left":[[0.651,0.88,0.2376,-0.0549,0.7404,0.6699],[0.721,0.9522,0.114,-0.037,0.9975,0.0601],[0.7256,0.9656,-0.0266,0.1172,0.993,0.0166],[0.7212,0.9628,-0.1401,0.1061,0.9923,-0.0641],[0.7144,0.9589,-0.2248,-0.162,0.9819,-0.0976],[1.6817,1.0231,-0.0376,0.1458,0.9859,-0.0818]],"spot rear right":[[-1.2316,-0.7949,0.3966,-0.6209,-0.782,-0.0543],[-0.7072,-0.9583,0.1695,-0.0063,-0.9785,0.2059],[-0.6966,-0.9528,0.1857,-0.009,-0.9445,0.3284],[-0.6947,-0.9643,0.1437,0.0229,-0.9759,0.2171],[-2.0073,-0.9592,-0.1403,-0.171,-0.982,-0.0802],[-2.3189,-0.9062,-0.0935,-0.2034,-0.9779,-0.0487]],"spot rear left":[[-1.2316,0.7949,0.3966,-0.6209,0.782,-0.0543],[-0.7072,0.9583,0.1695,-0.0063,0.9785,0.2059],[-0.6966,0.9528,0.1857,-0.009,0.9445,0.3284],[-0.6947,0.9643,0.1437,0.0229,0.9759,0.2171],[-2.0073,0.9592,-0.1403,-0.171,0.982,-0.0802],[-2.3189,0.9062,-0.0935,-0.2034,0.9779,-0.0487]]}'''   # the spot welds, car frame (m): {robot: [[x, y, z, nx, ny, nz] (sheet normal toward the robot), ...]}, in welding order
+SPOTS_JSON = r'''{"spot front right":[[0.651,-0.88,0.2376,-0.0549,-0.7404,0.6699],[0.721,-0.9522,0.114,-0.037,-0.9975,0.0601],[0.7256,-0.9656,-0.0266,0.1172,-0.993,0.0166],[0.7212,-0.9628,-0.1401,0.1061,-0.9923,-0.0641],[0.7144,-0.9589,-0.2248,-0.162,-0.9819,-0.0976]],"spot front left":[[0.651,0.88,0.2376,-0.0549,0.7404,0.6699],[0.721,0.9522,0.114,-0.037,0.9975,0.0601],[0.7256,0.9656,-0.0266,0.1172,0.993,0.0166],[0.7212,0.9628,-0.1401,0.1061,0.9923,-0.0641],[0.7144,0.9589,-0.2248,-0.162,0.9819,-0.0976]],"spot rear right":[[-1.2316,-0.7949,0.3966,-0.6209,-0.782,-0.0543],[-0.7072,-0.9583,0.1695,-0.0063,-0.9785,0.2059],[-0.6966,-0.9528,0.1857,-0.009,-0.9445,0.3284],[-0.6947,-0.9643,0.1437,0.0229,-0.9759,0.2171],[-2.0073,-0.9592,-0.1403,-0.171,-0.982,-0.0802],[-2.3189,-0.9062,-0.0935,-0.2034,-0.9779,-0.0487]],"spot rear left":[[-1.2316,0.7949,0.3966,-0.6209,0.782,-0.0543],[-0.7072,0.9583,0.1695,-0.0063,0.9785,0.2059],[-0.6966,0.9528,0.1857,-0.009,0.9445,0.3284],[-0.6947,0.9643,0.1437,0.0229,0.9759,0.2171],[-2.0073,0.9592,-0.1403,-0.171,0.982,-0.0802],[-2.3189,0.9062,-0.0935,-0.2034,0.9779,-0.0487]]}'''   # the spot welds, car frame (m): {robot: [[x, y, z, nx, ny, nz] (sheet normal toward the robot), ...]}, in welding order
 W = np.array([[0, 0, 1], [0, -1, 0], [0, -1, 0], [1, 0, 0], [0, -1, 0], [1, 0, 0]], float)
 QP = np.array([[0, 0, 0], [0.349, 0, 0.678], [0.349, 0, 1.825], [0.70, 0, 1.784], [1.575, 0, 1.784], [1.79, 0, 1.784]])
 LINKS = ["base", "a1", "a2", "a3", "a4", "a5", "a6"]
@@ -273,7 +273,7 @@ def laser_barrier(xc):
     parts = {k: [] for k in ("post", "cap", "lens", "ring", "label", "ink", "beams")}
     Z = (0.3, 0.6, 0.9, 1.2); HW = 0.055; HOOD = 0.034
     for sy in (-1, 1):
-        P = [np.array([xc - 3.55, sy * 1.45]), np.array([xc - 3.55, sy * 4.2]), np.array([xc + 3.55, sy * 4.2]), np.array([xc + 3.55, sy * 1.45])]
+        P = [np.array([xc - 3.55, sy * 1.45]), np.array([xc - 3.55, sy * 4.65]), np.array([xc + 3.55, sy * 4.65]), np.array([xc + 3.55, sy * 1.45])]
         for k, p in enumerate(P):
             parts["post"].append(g_rbox([p[0], p[1], 0.73], [2 * HW, 2 * HW, 1.32], 0.006))           # the yellow tower
             parts["cap"] += [g_rbox([p[0], p[1], 1.405], [2 * HW + 0.01, 2 * HW + 0.01, 0.03], 0.004),   # black top cap
@@ -981,7 +981,7 @@ def run(ctx):
     # the floor grating under the car, the yellow line around the cell, the control cabinets and their cables
     cells = [CELL_A_X] + ([CELL_B_X] if spots_on else [])
     static += [("static:grating", cat([grid_mesh(x0) for x0 in cells]), GRID_MAT),
-               ("static:floor line", cat([stripe_meshes(x0 - 3.7, x0 + 3.7, -4.4, 4.4) for x0 in cells]), STRIPE_MAT)]
+               ("static:floor line", cat([stripe_meshes(x0 - 3.7, x0 + 3.7, -4.85, 4.85) for x0 in cells]), STRIPE_MAT)]
     cab = {k: [] for k in ("body", "door", "dark", "screen", "green", "amber", "metal", "cable")}
     for name, bx, by, bz, aim in every:
         cx, cy = cabinet_spot(bx, by, CELL_B_X if name.startswith("spot ") else CELL_A_X)
