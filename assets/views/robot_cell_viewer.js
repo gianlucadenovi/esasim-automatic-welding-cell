@@ -3390,13 +3390,21 @@ var CAP = { rec: null, offline: false, pr: renderer.getPixelRatio(), started: 0,
 var tools = document.createElement('div');
 tools.style.cssText = 'position:absolute;right:12px;top:12px;display:flex;gap:6px;pointer-events:auto;align-items:center';
 var btnCss = 'all:unset;cursor:pointer;padding:3px 9px;border:1px solid #2a303b;border-radius:7px;background:rgba(10,14,22,.72);backdrop-filter:blur(6px);font-size:12px;white-space:nowrap';
-tools.innerHTML = '<button class="sm" style="' + btnCss + '" title="Fly the camera with a 3Dconnexion SpaceMouse (Chrome, Edge or Opera)">3D mouse</button>'
+tools.innerHTML = '<span class="volw" style="' + btnCss + ';display:flex;align-items:center;gap:6px;cursor:default" title="Sound volume: drag right to amplify the sounds (up to 4×); click the speaker to mute"><span class="volic" style="cursor:pointer">🔊</span><input class="vol" type="range" min="0" max="400" step="5" style="width:86px;accent-color:#ffb84d;cursor:pointer;margin:0"><span class="volv" style="min-width:34px;text-align:right;font-variant-numeric:tabular-nums">200%</span></span>'
++ '<button class="sm" style="' + btnCss + '" title="Fly the camera with a 3Dconnexion SpaceMouse (Chrome, Edge or Opera)">3D mouse</button>'
 + '<button class="pic" style="' + btnCss + '" title="Save a picture of the view">Picture</button>'
 + '<button class="recb" style="' + btnCss + '" title="Record a video of the view">● Record</button>'
 + '<button class="capset" style="' + btnCss + '" title="Picture and video settings">⚙</button>';
 ui.appendChild(tools);
 var smBtn = tools.querySelector('.sm'), picBtn = tools.querySelector('.pic'), recBtn = tools.querySelector('.recb');
 smBtn.onclick = function () { ctx.spacemouse(); };
+// the volume: a gain after the mix (0 to 4×) and a limiter after it so that loud moments do not clip; kept between visits
+var volIn = tools.querySelector('.vol'), volV = tools.querySelector('.volv'), volIc = tools.querySelector('.volic');
+var volPaint = function () { var on = typeof AUD === 'undefined' || AUD.on !== false; volIn.value = Math.round(audVol() * 100); volV.textContent = Math.round(audVol() * 100) + '%'; volIc.textContent = !on || audVol() === 0 ? '🔇' : audVol() < 0.7 ? '🔈' : audVol() < 1.6 ? '🔉' : '🔊'; volIn.style.opacity = on ? 1 : 0.4; };
+volIn.oninput = function () { var v = Math.max(0, Math.min(4, (+volIn.value || 0) / 100)); AUD.vol = v; try { localStorage.setItem('v3d.vol', String(v)); } catch (e) { } audUnlock(); if (AUD.volNode) AUD.volNode.gain.setTargetAtTime(v, AUD.ctx.currentTime, 0.03); if (v > 0 && !AUD.on) AUD.on = true; volPaint(); };
+volIn.onpointerdown = function (e) { e.stopPropagation(); }; volIn.onkeydown = function (e) { e.stopPropagation(); };
+volIc.onclick = function () { audUnlock(); AUD.on = !AUD.on; volPaint(); ['btn_on'].forEach(function (k) { if (RK[k]) RK[k](); }); };
+setInterval(volPaint, 700); setTimeout(volPaint, 0);
 var selCss = 'background:#1b2029;color:#e8ecf2;border:1px solid #2a303b;border-radius:6px;font-size:12px;padding:2px 4px;width:100%';
 var panel = document.createElement('div');
 panel.style.cssText = 'position:absolute;right:12px;top:46px;width:270px;background:rgba(10,14,22,.92);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 12px;pointer-events:auto;display:none;gap:7px;flex-direction:column;z-index:3';
@@ -5316,12 +5324,15 @@ camera.updateProjectionMatrix();
 }
 function RK_padOf(E) { return (E && E.meta.pad) || [0, 0]; }
 function fmtClock(t) { if (t == null) return ''; var s = Math.abs(t), m = Math.floor(s / 60), x = Math.floor(s % 60); return 'T' + (t < 0 ? '−' : '+') + ('0' + m).slice(-2) + ':' + ('0' + x).slice(-2); }
+function audVol() { if (typeof AUD === 'undefined') return 2; if (AUD.vol == null) { var v = NaN; try { v = parseFloat(localStorage.getItem('v3d.vol')); } catch (e) { } AUD.vol = isFinite(v) ? Math.max(0, Math.min(4, v)) : 2; } return AUD.vol; }
 function audUnlock() {
 if (AUD.ctx) { if (AUD.ctx.state === 'suspended') AUD.ctx.resume(); return; }
 var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
 try { AUD.ctx = new AC(); } catch (e) { return; }
-var A = AUD.ctx, out = A.createDynamicsCompressor(); out.threshold.value = -16; out.ratio.value = 4; out.connect(A.destination); AUD.out = out;
-if (A.createMediaStreamDestination) { AUD.rec = A.createMediaStreamDestination(); out.connect(AUD.rec); }
+var A = AUD.ctx, out = A.createDynamicsCompressor(); out.threshold.value = -16; out.ratio.value = 4; AUD.out = out;
+var vol = A.createGain(); vol.gain.value = audVol(); AUD.volNode = vol; out.connect(vol);
+var lim = A.createDynamicsCompressor(); lim.threshold.value = -2; lim.knee.value = 2; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.12; vol.connect(lim); lim.connect(A.destination);
+if (A.createMediaStreamDestination) { AUD.rec = A.createMediaStreamDestination(); lim.connect(AUD.rec); }
 var master = A.createGain(); master.gain.value = AUD.on ? 0.9 : 0; master.connect(out);
 var noise = function (sec, brown) { var n = Math.floor(A.sampleRate * sec), b = A.createBuffer(1, n, A.sampleRate), d = b.getChannelData(0), l = 0;
 for (var i = 0; i < n; i++) { var w = Math.random() * 2 - 1; if (brown) { l = (l + 0.02 * w) / 1.02; d[i] = l * 3.5; } else d[i] = w; } return b; };
