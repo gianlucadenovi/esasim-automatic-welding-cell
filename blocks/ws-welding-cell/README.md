@@ -4,14 +4,14 @@ Four KUKA KR 210 robots weld a car body frame on a sled: a laser seam camera wit
 
 What to do: Learn to follow the seams trains the seam camera's network on simulated laser profiles (on an NVIDIA GPU when the machine has one, otherwise on the CPU, with Accelerator auto) and, every few minutes, welds a whole car with it; the network goes out as seam_tracker_<date>_<p95>um.pt (send it to a dataset wired back to Seam tracker so learning goes on from it). Run the production line (any machine) welds car after car with the newest network: the sled brings the car in (it stops within ±3 cm), the four robots read two reference points each with their laser line and find the car's position and turn, then weld their seams following the camera, and the car leaves for the next one. The robots must not touch the car nor each other: with the robot and car models wired to Models, every robot welds each seam with a torch lean that keeps its arm 15 mm and its torch 6 mm from the car wherever the sled stops (the lean found once is stored and checked again at the start), every move keeps clear of the car (over raised via poses when the straight way does not), and the torch stays off the sheet while it scans; every car is checked afterwards, and the least distances to the car and between robots and any moments of contact are in the results, the events and the learning scores. Seam camera off (or no network yet) welds the taught programme as it is, to compare. 3D: wire the Welding cell model block's output to a 3D view and to Robot model here, and this block's telemetry to the same view: the car frame on its sled and the four robots move there while the cars are welded, the arc glows at each wire, and the welds appear on the car as dark beads right behind each torch and stay on it until it leaves. Results: every weld (worst and mean distance from the real seam, in mm) and every car (where it really was and where the robots found it, cycle time, clearances).
 
-An [EsaSim](https://esacode.com/) blueprint block: it runs on a machine, in Python (`backend.py`, `def run(ctx)`).
+An [EsaSim](https://esacode.com/) blueprint block: it runs on a worker, in Python (`backend.py`, `def run(ctx)`).
 
 | | |
 |---|---|
 | Block | `ws-welding-cell` · version 14 |
 | Workspace | Gianluca De Novi's workspace |
 | Author | Gianluca De Novi |
-| Runs on | Any machine, NVIDIA GPU |
+| Runs on | Any worker, NVIDIA GPU |
 
 ## Inputs
 
