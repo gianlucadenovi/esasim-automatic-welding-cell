@@ -20,7 +20,7 @@
         {
             "name": "2 · Production line",
             "file": "blueprints/2-production-line.json",
-            "published_version": 2,
+            "published_version": 3,
             "nodes": 10
         }
     ],

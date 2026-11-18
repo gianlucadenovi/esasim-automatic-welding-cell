@@ -52,7 +52,7 @@ An [EsaSim](https://esacode.com/) project of the workspace Gianluca De Novi's wo
 ### Blueprints in this repository
 
 - [1 · Learn to follow the seams](blueprints/1-learn-to-follow-the-seams.json) · 9 blocks · version 8
-- [2 · Production line](blueprints/2-production-line.json) · 10 blocks · version 2
+- [2 · Production line](blueprints/2-production-line.json) · 10 blocks · version 3
 
 ### Workspace blocks it uses
 
