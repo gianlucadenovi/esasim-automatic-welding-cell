@@ -4,34 +4,7 @@
         "version": 1
     },
     "release": null,
-    "datasets": [
-        {
-            "name": "weld-tracker",
-            "dataset_id": 17,
-            "root": "weld-tracker",
-            "location": {
-                "id": 3,
-                "kind": "worker"
-            },
-            "made_by": [
-                "1 · Learn to follow the seams: Welding cell: learn to follow the seams"
-            ],
-            "version": 5,
-            "files": 5,
-            "bytes": 10257803,
-            "key": "2edfcda919689558b36cc19662e974132fb2d9feef1383900d55d7b17fa23d4c",
-            "parts": [
-                {
-                    "zip": "files/weld-tracker.zip",
-                    "size": 8957477,
-                    "sha256": "48a884087c9e181a7cc99903190ee429f6095ab56b90be416acf22b57686d954",
-                    "files": 5,
-                    "in": "repo"
-                }
-            ],
-            "left_out": []
-        }
-    ],
+    "datasets": [],
     "assets": [
         {
             "path": "textures/esacode-logo.png",
@@ -62,5 +35,5 @@
             "in": "repo"
         }
     ],
-    "saved": "2026-11-16T00:54:20+00:00"
+    "saved": "2026-11-18T20:48:35+00:00"
 }

@@ -26,7 +26,6 @@ Learn on the GPU, then run the line car after car, live in 3D.
 ## What you need
 
 - A computer with the EsaSim worker (Project > Compute); it runs on any worker, faster with: NVIDIA GPU.
-- Data it reads: the dataset **welding-cell-models** of the workspace, read by *welding-cell-models (robot, car frame)*.
 - Python packages, installed by the worker the first time: `numpy`, `trimesh`, `fast-simplification`, `scipy`, `rtree`, `torch`.
 
 ## How to run it
@@ -38,10 +37,6 @@ Learn on the GPU, then run the line car after car, live in 3D.
 ## What you get
 
 - On the **View** page: *welding-cell-models (robot, car frame)* (2 · Production line), *The cell's joints and seams, live* (2 · Production line), *Live: the four robots welding a car with the network as it learns* (1 · Learn to follow the seams), *Learning curve* (1 · Learn to follow the seams), *How well the seam camera reads* (1 · Learn to follow the seams), *By joint type* (1 · Learn to follow the seams), *Learning* (1 · Learn to follow the seams), *Live: the four robots, car after car* (2 · Production line), *Car by car* (2 · Production line), *Weld accuracy, car by car* (2 · Production line), *Finding the car* (2 · Production line), *The line* (2 · Production line).
-
-## Data and licences
-
-- the dataset **welding-cell-models** of the workspace, read by *welding-cell-models (robot, car frame)*
 
 <!-- esasim: files of the project -->
 
@@ -68,13 +63,5 @@ The files the project's views draw with (3D models, textures, sounds), in [asset
 - [textures/esacode_logo_white.png](assets/textures/esacode_logo_white.png) · 11 KB
 - [textures/smoke_puff.jpg](assets/textures/smoke_puff.jpg) · 2.2 KB
 - [views/robot_cell_viewer.js](assets/views/robot_cell_viewer.js) · 924 KB
-
-### Files the blueprints make
-
-Kept with the project (listed in [esasim-files.json](esasim-files.json)), so it runs without making them again:
-
-- **weld-tracker** · 5 files, 9.8 MB · made by 1 · Learn to follow the seams: Welding cell: learn to follow the seams · in [files/weld-tracker.zip](files/weld-tracker.zip)
-
-The data the blueprints read (welding-cell-models) stays in EsaSim.
 
 Keys pasted in blocks (secret settings) are not saved here, nor are the team and the results of runs.
