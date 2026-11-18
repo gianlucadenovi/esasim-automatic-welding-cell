@@ -33,7 +33,56 @@
             "sha256": "a49276789b650a5b263e6c391f53422986d3f6c29f40a38951fca8c944b9ed34",
             "zip": "assets/views/robot_cell_viewer.js",
             "in": "repo"
+        },
+        {
+            "path": "weld-tracker/robot_cell_viewer.js",
+            "size": 919559,
+            "sha256": "0b215a79c999307fb94f744a869a28024c08bb3c1988d094cc8c990f2d18e96d",
+            "zip": "assets/weld-tracker/robot_cell_viewer.js",
+            "in": "repo"
+        },
+        {
+            "path": "weld-tracker/seam_tracker_20261114_2159_1187um.pt",
+            "size": 2334529,
+            "sha256": "147bd1a7a70043c1eba0ae9d45184938e0d115bb6167f9222b775542954f9db2",
+            "zip": "assets/weld-tracker/seam_tracker_20261114_2159_1187um.pt",
+            "in": "repo"
+        },
+        {
+            "path": "weld-tracker/seam_tracker_20261115_0053_1051um.pt",
+            "size": 2334529,
+            "sha256": "1edbc63d6218c7b55d83cb0be0212a516e60c53efc141af0ef029180637a51e0",
+            "zip": "assets/weld-tracker/seam_tracker_20261115_0053_1051um.pt",
+            "in": "repo"
+        },
+        {
+            "path": "weld-tracker/seam_tracker_20261115_0206_1224um.pt",
+            "size": 2334593,
+            "sha256": "920ebc56da6f1f136f1eb80e3f746fbb6fcfef92cfe5826112c497acdf57fe81",
+            "zip": "assets/weld-tracker/seam_tracker_20261115_0206_1224um.pt",
+            "in": "repo"
+        },
+        {
+            "path": "weld-tracker/seam_tracker_20261115_0331_1125um.pt",
+            "size": 2334593,
+            "sha256": "5abb897370b264426d64f6f8489af73d1ac12396ad8f9064ac777e5472c767cc",
+            "zip": "assets/weld-tracker/seam_tracker_20261115_0331_1125um.pt",
+            "in": "repo"
+        },
+        {
+            "path": "welding-cell-models/kr210_weld.glb",
+            "size": 717008,
+            "sha256": "1349682b52937c4abff350f584acb4cfd55b37323d3d189abb509db1935cfd0d",
+            "zip": "assets/welding-cell-models/kr210_weld.glb",
+            "in": "repo"
+        },
+        {
+            "path": "welding-cell-models/s15_frame (1).glb",
+            "size": 1531932,
+            "sha256": "f5b1ac5e53ecc25b1fd34303cac646c471fef0f29a8c0b13824baae422efd1e1",
+            "zip": "assets/welding-cell-models/s15_frame (1).glb",
+            "in": "repo"
         }
     ],
-    "saved": "2026-11-18T20:48:35+00:00"
+    "saved": "2026-11-18T21:30:59+00:00"
 }

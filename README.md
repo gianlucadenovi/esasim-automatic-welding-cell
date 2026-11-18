@@ -63,5 +63,12 @@ The files the project's views draw with (3D models, textures, sounds), in [asset
 - [textures/esacode_logo_white.png](assets/textures/esacode_logo_white.png) · 11 KB
 - [textures/smoke_puff.jpg](assets/textures/smoke_puff.jpg) · 2.2 KB
 - [views/robot_cell_viewer.js](assets/views/robot_cell_viewer.js) · 924 KB
+- [weld-tracker/robot_cell_viewer.js](assets/weld-tracker/robot_cell_viewer.js) · 898 KB
+- [weld-tracker/seam_tracker_20261114_2159_1187um.pt](assets/weld-tracker/seam_tracker_20261114_2159_1187um.pt) · 2.2 MB
+- [weld-tracker/seam_tracker_20261115_0053_1051um.pt](assets/weld-tracker/seam_tracker_20261115_0053_1051um.pt) · 2.2 MB
+- [weld-tracker/seam_tracker_20261115_0206_1224um.pt](assets/weld-tracker/seam_tracker_20261115_0206_1224um.pt) · 2.2 MB
+- [weld-tracker/seam_tracker_20261115_0331_1125um.pt](assets/weld-tracker/seam_tracker_20261115_0331_1125um.pt) · 2.2 MB
+- [welding-cell-models/kr210_weld.glb](assets/welding-cell-models/kr210_weld.glb) · 700 KB
+- [welding-cell-models/s15_frame (1).glb](assets/welding-cell-models/s15_frame%20(1).glb) · 1.5 MB
 
 Keys pasted in blocks (secret settings) are not saved here, nor are the team and the results of runs.
