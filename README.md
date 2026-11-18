@@ -36,7 +36,7 @@ Learn on the GPU, then run the line car after car, live in 3D.
 
 ## What you get
 
-- On the **View** page: *welding-cell-models (robot, car frame)* (1 · Learn to follow the seams), *The cell's joints and seams, live* (2 · Production line), *Live: the four robots welding a car with the network as it learns* (1 · Learn to follow the seams), *Learning curve* (1 · Learn to follow the seams), *How well the seam camera reads* (1 · Learn to follow the seams), *By joint type* (1 · Learn to follow the seams), *Learning* (1 · Learn to follow the seams), *Robot and car frame (project assets)* (2 · Production line), *Live: the four robots, car after car* (2 · Production line), *Car by car* (2 · Production line), *Weld accuracy, car by car* (2 · Production line), *Finding the car* (2 · Production line).
+- On the **View** page: *Robot and car frame (project assets)* (2 · Production line), *The cell's joints and seams, live* (2 · Production line), *Live: the four robots welding a car with the network as it learns* (1 · Learn to follow the seams), *Learning curve* (1 · Learn to follow the seams), *How well the seam camera reads* (1 · Learn to follow the seams), *By joint type* (1 · Learn to follow the seams), *Learning* (1 · Learn to follow the seams), *Live: the four robots, car after car* (2 · Production line), *Car by car* (2 · Production line), *Weld accuracy, car by car* (2 · Production line), *Finding the car* (2 · Production line), *The line* (2 · Production line).
 
 <!-- esasim: files of the project -->
 
@@ -46,8 +46,8 @@ An [EsaSim](https://esacode.com/) project of the workspace Gianluca De Novi's wo
 
 ### Blueprints in this repository
 
-- [1 · Learn to follow the seams](blueprints/1-learn-to-follow-the-seams.json) · 9 blocks · version 8
-- [2 · Production line](blueprints/2-production-line.json) · 10 blocks · version 3
+- [1 · Learn to follow the seams](blueprints/1-learn-to-follow-the-seams.json) · 9 blocks · version 9
+- [2 · Production line](blueprints/2-production-line.json) · 10 blocks · version 4
 
 ### Workspace blocks it uses
 

@@ -14,13 +14,13 @@
         {
             "name": "1 · Learn to follow the seams",
             "file": "blueprints/1-learn-to-follow-the-seams.json",
-            "published_version": 8,
+            "published_version": 9,
             "nodes": 9
         },
         {
             "name": "2 · Production line",
             "file": "blueprints/2-production-line.json",
-            "published_version": 3,
+            "published_version": 4,
             "nodes": 10
         }
     ],
