@@ -6,19 +6,18 @@
     "name": "2 · Production line",
     "description": "Car after car: the sled brings the frame in, the four robots find it with their laser cameras, weld their quarter of it following the seams, and the car slides out for the next one.",
     "published_version": 3,
-    "updated": "2026-11-18 18:01:54",
+    "updated": "2026-11-18 21:31:29",
     "graph": {
         "nodes": [
             {
                 "id": "models",
-                "type": "dataset",
+                "type": "project-assets",
                 "x": -660,
                 "y": 60,
                 "params": {
-                    "dataset": "16",
-                    "pattern": "kr210*.glb, s15_frame*.glb"
+                    "files": "assets/welding-cell-models/kr210*.glb, assets/welding-cell-models/s15_frame*.glb"
                 },
-                "title": "welding-cell-models (robot, car frame)"
+                "title": "Robot and car frame (project assets)"
             },
             {
                 "id": "robot_model",
